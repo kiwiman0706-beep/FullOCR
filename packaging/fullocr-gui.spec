@@ -12,9 +12,17 @@
 # separately built companion executable (see .github/workflows/build-windows.yml),
 # placed in dist/fullocr-gui/ndlocr-lite/ alongside this app.
 
+import os
+
 from PyInstaller.utils.hooks import collect_all
 
-datas = [("src/fullocr/gui/static", "fullocr/gui/static")]
+# PyInstaller resolves relative paths in a .spec file relative to the spec
+# file's own directory (SPECPATH), not the CWD `pyinstaller` was invoked
+# from. Anchor everything on the repo root explicitly instead of guessing.
+ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))  # noqa: F821 (SPECPATH is injected by PyInstaller)
+SRC = os.path.join(ROOT, "src")
+
+datas = [(os.path.join(SRC, "fullocr", "gui", "static"), "fullocr/gui/static")]
 binaries = []
 hiddenimports = []
 
@@ -25,8 +33,8 @@ for pkg in ("docling", "docling_core", "docling_parse", "rapidocr", "transformer
     hiddenimports += h
 
 a = Analysis(
-    ["src/fullocr/gui/app.py"],
-    pathex=["src"],
+    [os.path.join(SRC, "fullocr", "gui", "app.py")],
+    pathex=[SRC],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
