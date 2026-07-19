@@ -26,14 +26,20 @@ datas = [(os.path.join(SRC, "fullocr", "gui", "static"), "fullocr/gui/static")]
 binaries = []
 hiddenimports = []
 
-for pkg in ("docling", "docling_core", "docling_parse", "rapidocr", "transformers"):
+# docling* / rapidocr / transformers: レイアウト・OCRモデルのコードとデータ。
+# webview(pywebview): Windows のバックエンド(webview.platforms.edgechromium 等)を
+#   文字列で動的 import するため、collect_all で submodule を hiddenimports に
+#   含めないと凍結時に ModuleNotFoundError になる。
+for pkg in ("docling", "docling_core", "docling_parse", "rapidocr", "transformers", "webview"):
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b
     hiddenimports += h
 
 a = Analysis(
-    [os.path.join(SRC, "fullocr", "gui", "app.py")],
+    # 凍結時のエントリは絶対 import の薄いランチャー。app.py を直接エントリにすると
+    # __main__ 実行になり `from .server import app` が相対 import で失敗する。
+    [os.path.join(ROOT, "packaging", "gui_entry.py")],
     pathex=[SRC],
     binaries=binaries,
     datas=datas,
