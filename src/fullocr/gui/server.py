@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import sys
 import threading
 import uuid
 from pathlib import Path
@@ -27,6 +28,23 @@ UPLOAD_DIR = Path("gui_uploads")
 _lock = threading.Lock()
 _jobs: dict[str, dict] = {}
 _batch_running = False
+
+
+def _base_config() -> PipelineConfig:
+    """ユーザーの fullocr.config.json（あれば）をベースに設定を組み立てる。
+
+    PyInstaller で固めた exe の中では、NDLOCR-Lite は別licenseの同梱companion exe
+    として `<このexeのフォルダ>/ndlocr-lite/ndlocr-lite.exe` に置かれる想定。
+    起動時のカレントディレクトリに依存させたくないので、exe 自身の場所から
+    絶対パスで解決する（`sys.executable` は凍結時、fullocr-gui.exe 自身を指す）。
+    """
+    config_path = Path("fullocr.config.json")
+    cfg = PipelineConfig.load(config_path) if config_path.exists() else PipelineConfig()
+    if getattr(sys, "frozen", False):
+        ndl_exe = Path(sys.executable).parent / "ndlocr-lite" / "ndlocr-lite.exe"
+        if ndl_exe.exists():
+            cfg.ndl.command = f'"{ndl_exe}" --sourcepdf {{input}} --output {{outdir}}'
+    return cfg
 
 
 def _run_batch(upload_dir: Path, cfg: PipelineConfig, skip_existing: bool, job_id_by_name: dict[str, str]) -> None:
@@ -72,13 +90,12 @@ async def convert(
     for old in UPLOAD_DIR.glob("*.pdf"):
         old.unlink()
 
-    cfg = PipelineConfig(
-        render=RenderConfig(
-            drop_headers_footers=drop_headers_footers,
-            obsidian_wiklinks=obsidian_wiklinks,
-            front_matter=front_matter,
-            split_by_heading_level=1 if split_chapters else None,
-        )
+    cfg = _base_config()
+    cfg.render = RenderConfig(
+        drop_headers_footers=drop_headers_footers,
+        obsidian_wiklinks=obsidian_wiklinks,
+        front_matter=front_matter,
+        split_by_heading_level=1 if split_chapters else None,
     )
 
     job_id_by_name: dict[str, str] = {}

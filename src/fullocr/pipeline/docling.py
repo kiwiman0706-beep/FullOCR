@@ -30,13 +30,14 @@ from __future__ import annotations
 
 import json
 import re
-import shlex
 import subprocess
+import sys
 from pathlib import Path
 
 from ..config import DoclingConfig
 from ..ir import BBox, BlockType
 from .layout import LayoutBlock, LayoutPage
+from .shellutil import quote_path
 
 # Docling は同じ本の中でも図表キャプションを "caption" と "section_header" に
 # 一貫性なく振り分けることが実データで確認された（フォントの太さ等の見た目次第らしい）。
@@ -271,9 +272,44 @@ def load_docling_dir(outdir: str | Path, json_glob: str = "**/*.json") -> list[L
 
 
 def run_docling(input_pdf: str | Path, outdir: str | Path, cfg: DoclingConfig) -> Path:
-    """Docling を実行して JSON を outdir に生成する（実行はユーザー環境）。"""
+    """Docling を実行して JSON を outdir に生成する。
+
+    通常（開発環境・pip install 済み）は `cfg.command` の CLI を subprocess で叩く。
+    PyInstaller で固めた exe の中では、"docling" という別コマンドは存在しない
+    （フリーズされているのは fullocr 自身のエントリポイントだけで、docling 自体は
+    Python ライブラリとして同梱されているだけ）。`sys.frozen` で凍結実行を検知し、
+    その場合だけ Docling の Python API を直接呼ぶ（同じプロセス内・同じ依存を再利用
+    するので、Docling 用に別exeを二重にビルドせずに済む）。
+    """
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
-    cmd = cfg.command.format(input=shlex.quote(str(input_pdf)), outdir=shlex.quote(str(outdir)))
+    if getattr(sys, "frozen", False):
+        run_docling_inprocess(input_pdf, outdir)
+        return outdir
+    cmd = cfg.command.format(input=quote_path(str(input_pdf)), outdir=quote_path(str(outdir)))
     subprocess.run(cmd, shell=True, check=True)
     return outdir
+
+
+def run_docling_inprocess(input_pdf: str | Path, outdir: str | Path) -> Path:
+    """Docling の Python API を直接呼んで JSON を書き出す（exe 同梱用）。
+
+    `docling convert {input} --to json --output {outdir} --no-ocr` と等価な処理を
+    サブプロセスを介さず行う。
+    """
+    from docling.datamodel.base_models import InputFormat
+    from docling.datamodel.pipeline_options import PdfPipelineOptions
+    from docling.document_converter import DocumentConverter, PdfFormatOption
+
+    input_pdf = Path(input_pdf)
+    outdir = Path(outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+
+    pipeline_options = PdfPipelineOptions(do_ocr=False)
+    converter = DocumentConverter(
+        format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)}
+    )
+    result = converter.convert(str(input_pdf))
+    out_path = outdir / f"{input_pdf.stem}.json"
+    result.document.save_as_json(out_path)
+    return out_path

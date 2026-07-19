@@ -31,13 +31,13 @@ MinerU middle.json（要点）:
 from __future__ import annotations
 
 import json
-import shlex
 import subprocess
 from pathlib import Path
 
 from ..config import MinerUConfig
 from ..ir import BBox, BlockType
 from .layout import LayoutBlock, LayoutPage
+from .shellutil import quote_path
 
 _TYPE_MAP: dict[str, BlockType] = {
     "title": BlockType.HEADING,
@@ -161,6 +161,6 @@ def run_mineru(input_pdf: str | Path, outdir: str | Path, cfg: MinerUConfig) -> 
     """MinerU を実行して middle.json 等を outdir に生成する（実行はユーザー環境）。"""
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
-    cmd = cfg.command.format(input=shlex.quote(str(input_pdf)), outdir=shlex.quote(str(outdir)))
+    cmd = cfg.command.format(input=quote_path(str(input_pdf)), outdir=quote_path(str(outdir)))
     subprocess.run(cmd, shell=True, check=True)
     return outdir

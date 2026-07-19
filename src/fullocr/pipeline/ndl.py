@@ -16,13 +16,13 @@ NDLOCR-Lite の出力仕様（要点）:
 from __future__ import annotations
 
 import json
-import shlex
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..config import NDLConfig
 from ..ir import BBox, Orientation
+from .shellutil import quote_path
 
 # JSON キー名のゆらぎを吸収する別名テーブル。
 _TEXT_KEYS = ("text", "content", "value", "recognition")
@@ -216,6 +216,6 @@ def run_ndl(input_pdf: str | Path, outdir: str | Path, cfg: NDLConfig) -> Path:
     outdir.mkdir(parents=True, exist_ok=True)
     # 自炊本のファイル名は空白・記号を含みがち（実データで確認済み）。shell=True の
     # コマンド文字列に埋め込む前に quote してトークン分割崩れを防ぐ。
-    cmd = cfg.command.format(input=shlex.quote(str(input_pdf)), outdir=shlex.quote(str(outdir)))
+    cmd = cfg.command.format(input=quote_path(str(input_pdf)), outdir=quote_path(str(outdir)))
     subprocess.run(cmd, shell=True, check=True)
     return outdir

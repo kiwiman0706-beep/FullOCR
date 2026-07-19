@@ -19,13 +19,13 @@ from __future__ import annotations
 
 import json
 import re
-import shlex
 import subprocess
 from pathlib import Path
 
 from ..config import MarkerConfig
 from ..ir import BBox, BlockType
 from .layout import LayoutBlock, LayoutPage
+from .shellutil import quote_path
 
 # 後方互換のための別名（旧コード/テストが MarkerBlock/MarkerPage を参照する）。
 MarkerBlock = LayoutBlock
@@ -168,6 +168,6 @@ def run_marker(input_pdf: str | Path, outdir: str | Path, cfg: MarkerConfig) -> 
     """Marker CLI を実行して JSON を outdir に生成する（実行はユーザー環境）。"""
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
-    cmd = cfg.command.format(input=shlex.quote(str(input_pdf)), outdir=shlex.quote(str(outdir)))
+    cmd = cfg.command.format(input=quote_path(str(input_pdf)), outdir=quote_path(str(outdir)))
     subprocess.run(cmd, shell=True, check=True)
     return outdir

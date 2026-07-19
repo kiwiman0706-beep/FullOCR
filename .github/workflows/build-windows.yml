@@ -1,0 +1,76 @@
+name: Build Windows exe
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: fullocr
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: python -m pip install uv
+
+      # --- FullOCR + Docling + GUI, built into dist/fullocr-gui/ ---
+      - name: Install FullOCR (docling + gui)
+        working-directory: fullocr
+        run: |
+          uv venv .venv
+          uv pip install --python .venv\Scripts\python.exe -e ".[docling,pdf,gui]"
+          uv pip install --python .venv\Scripts\python.exe pyinstaller
+
+      - name: Build fullocr-gui.exe
+        working-directory: fullocr
+        run: .venv\Scripts\pyinstaller.exe packaging\fullocr-gui.spec
+
+      # --- NDLOCR-Lite: separate license/deps, built as its own companion exe ---
+      - name: Clone NDLOCR-Lite
+        run: git clone --depth 1 https://github.com/ndl-lab/ndlocr-lite.git ndlocr-lite-src
+
+      - name: Install NDLOCR-Lite deps
+        working-directory: ndlocr-lite-src
+        run: |
+          uv venv .venv
+          uv pip install --python .venv\Scripts\python.exe -r requirements.txt
+          uv pip install --python .venv\Scripts\python.exe pyinstaller
+
+      - name: Build ndlocr-lite.exe
+        working-directory: ndlocr-lite-src
+        run: >
+          .venv\Scripts\pyinstaller.exe
+          --name ndlocr-lite
+          --onedir
+          --console
+          --paths src
+          --add-data "src\model;model"
+          --add-data "src\config;config"
+          src\ocr.py
+
+      # --- Combine into one distributable folder ---
+      - name: Assemble distribution
+        run: |
+          mkdir dist
+          xcopy /E /I fullocr\dist\fullocr-gui dist\fullocr-gui
+          xcopy /E /I ndlocr-lite-src\dist\ndlocr-lite dist\fullocr-gui\ndlocr-lite
+
+      - name: Zip distribution
+        run: Compress-Archive -Path dist\fullocr-gui -DestinationPath fullocr-gui-windows.zip
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fullocr-gui-windows
+          path: fullocr-gui-windows.zip
+          retention-days: 14
