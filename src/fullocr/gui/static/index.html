@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FullOCR</title>
+<style>
+  :root{
+    --bg:#f6f4ef; --panel:#ffffff; --ink:#1c1b19; --ink-soft:#6b6860;
+    --line:#ddd8cd; --accent:#2f5d62; --accent-soft:#e3ebe9;
+    --good:#3f7d5c; --warn:#a8582b; --bad:#b23b2f;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,"Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+    line-height:1.6;
+  }
+  .wrap{max-width:720px; margin:0 auto; padding:32px 20px 60px;}
+  h1{font-size:22px; margin:0 0 4px; font-weight:700;}
+  .sub{color:var(--ink-soft); font-size:13px; margin:0 0 28px;}
+
+  .dropzone{
+    border:2px dashed var(--line); border-radius:10px; background:var(--panel);
+    padding:40px 20px; text-align:center; cursor:pointer; transition:border-color .15s, background .15s;
+  }
+  .dropzone.drag{border-color:var(--accent); background:var(--accent-soft);}
+  .dropzone .icon{font-size:32px; margin-bottom:8px;}
+  .dropzone .main{font-size:14px; font-weight:600;}
+  .dropzone .hint{font-size:12px; color:var(--ink-soft); margin-top:4px;}
+  input[type=file]{display:none;}
+
+  .filelist{margin-top:16px; display:flex; flex-direction:column; gap:6px;}
+  .file-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background:var(--panel); border:1px solid var(--line); border-radius:6px;
+    padding:8px 12px; font-size:13px;
+  }
+  .file-row .name{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .file-row .rm{
+    border:none; background:none; color:var(--ink-soft); cursor:pointer; font-size:16px; line-height:1;
+    padding:2px 4px;
+  }
+  .file-row .rm:hover{color:var(--bad);}
+
+  .options{
+    margin-top:24px; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px 18px;
+  }
+  .options h2{font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); margin:0 0 12px; font-weight:600;}
+  .opt-row{display:flex; align-items:flex-start; gap:10px; padding:7px 0;}
+  .opt-row input{margin-top:3px;}
+  .opt-row label{font-size:14px; cursor:pointer;}
+  .opt-row .desc{font-size:12px; color:var(--ink-soft); margin-top:2px;}
+
+  button.primary{
+    margin-top:20px; width:100%; padding:12px; font-size:15px; font-weight:600;
+    background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer;
+  }
+  button.primary:disabled{background:var(--line); color:var(--ink-soft); cursor:not-allowed;}
+  button.primary:not(:disabled):hover{filter:brightness(1.08);}
+
+  .jobs{margin-top:28px;}
+  .jobs h2{font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); margin:0 0 12px; font-weight:600;}
+  table{width:100%; border-collapse:collapse; font-size:13px; background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden;}
+  th,td{padding:9px 12px; text-align:left; border-bottom:1px solid var(--line);}
+  tr:last-child td{border-bottom:none;}
+  th{font-size:11px; text-transform:uppercase; color:var(--ink-soft); font-weight:500;}
+  .status-pill{display:inline-block; padding:2px 8px; border-radius:99px; font-size:11px; font-weight:600;}
+  .status-queued{background:#eee; color:var(--ink-soft);}
+  .status-processing{background:var(--accent-soft); color:var(--accent);}
+  .status-done{background:#e2ede7; color:var(--good);}
+  .status-skipped{background:#eee; color:var(--ink-soft);}
+  .status-error{background:#f6dcdc; color:var(--bad);}
+  .outpath{font-size:11px; color:var(--ink-soft); word-break:break-all;}
+
+  .banner{
+    margin-top:16px; padding:10px 14px; border-radius:6px; font-size:13px;
+    background:#f6dcdc; color:var(--bad); display:none;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>FullOCR</h1>
+  <p class="sub">自炊PDFを構造化Markdownに変換します。複数ファイルをまとめてドラッグ&ドロップできます。</p>
+
+  <div class="dropzone" id="dropzone">
+    <div class="icon">📄</div>
+    <div class="main">ここにPDFをドラッグ&ドロップ</div>
+    <div class="hint">またはクリックしてファイルを選択（複数選択可）</div>
+    <input type="file" id="fileInput" accept="application/pdf" multiple />
+  </div>
+
+  <div class="filelist" id="fileList"></div>
+
+  <div class="options">
+    <h2>オプション</h2>
+    <div class="opt-row">
+      <input type="checkbox" id="opt-headers" checked />
+      <div><label for="opt-headers">ページの柱・ノンブルを本文から除外する</label>
+        <div class="desc">推奨。ヘッダー・フッターとして検出された行を本文に含めません。</div></div>
+    </div>
+    <div class="opt-row">
+      <input type="checkbox" id="opt-wiklinks" checked />
+      <div><label for="opt-wiklinks">Obsidianのwikilink形式で画像を埋め込む</label>
+        <div class="desc">オフにすると通常のMarkdown画像記法（![alt](path)）になります。</div></div>
+    </div>
+    <div class="opt-row">
+      <input type="checkbox" id="opt-frontmatter" checked />
+      <div><label for="opt-frontmatter">front-matterを付ける</label>
+        <div class="desc">タイトル・出典・ページ数などをファイル先頭に記載します。</div></div>
+    </div>
+    <div class="opt-row">
+      <input type="checkbox" id="opt-split" />
+      <div><label for="opt-split">章ごとにファイルを分割する（実験的）</label>
+        <div class="desc">本のデザインによっては見出し検出が不安定なため、過剰に分割されることがあります。</div></div>
+    </div>
+    <div class="opt-row">
+      <input type="checkbox" id="opt-skip" checked />
+      <div><label for="opt-skip">変換済みのファイルはスキップする</label>
+        <div class="desc">同じ本を再度ドロップしても、既に出力があれば再変換しません。</div></div>
+    </div>
+  </div>
+
+  <div class="banner" id="banner"></div>
+
+  <button class="primary" id="startBtn" disabled>変換開始</button>
+
+  <div class="jobs" id="jobsSection" style="display:none;">
+    <h2>進捗</h2>
+    <table>
+      <thead><tr><th>ファイル</th><th>状態</th><th>出力先</th></tr></thead>
+      <tbody id="jobsBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const fileListEl = document.getElementById('fileList');
+const startBtn = document.getElementById('startBtn');
+const banner = document.getElementById('banner');
+const jobsSection = document.getElementById('jobsSection');
+const jobsBody = document.getElementById('jobsBody');
+
+let pendingFiles = [];
+
+function renderFileList() {
+  fileListEl.innerHTML = '';
+  pendingFiles.forEach((f, i) => {
+    const row = document.createElement('div');
+    row.className = 'file-row';
+    row.innerHTML = `<span class="name">${f.name}</span>`;
+    const rm = document.createElement('button');
+    rm.className = 'rm';
+    rm.textContent = '×';
+    rm.onclick = () => { pendingFiles.splice(i, 1); renderFileList(); };
+    row.appendChild(rm);
+    fileListEl.appendChild(row);
+  });
+  startBtn.disabled = pendingFiles.length === 0;
+}
+
+function addFiles(fileArray) {
+  for (const f of fileArray) {
+    if (f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')) {
+      pendingFiles.push(f);
+    }
+  }
+  renderFileList();
+}
+
+dropzone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', (e) => addFiles(Array.from(e.target.files)));
+
+['dragenter', 'dragover'].forEach(evt =>
+  dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add('drag'); })
+);
+['dragleave', 'drop'].forEach(evt =>
+  dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove('drag'); })
+);
+dropzone.addEventListener('drop', (e) => {
+  addFiles(Array.from(e.dataTransfer.files));
+});
+
+function showBanner(msg) {
+  banner.textContent = msg;
+  banner.style.display = msg ? 'block' : 'none';
+}
+
+const STATUS_LABEL = {
+  queued: 'キュー待ち',
+  skipped: 'スキップ',
+  done: '完了',
+};
+function statusInfo(raw) {
+  if (raw === 'done') return { cls: 'status-done', label: '完了' };
+  if (raw === 'skipped') return { cls: 'status-skipped', label: 'スキップ' };
+  if (raw === 'queued') return { cls: 'status-queued', label: 'キュー待ち' };
+  if (raw.startsWith('error')) return { cls: 'status-error', label: raw };
+  if (raw.startsWith('processing')) return { cls: 'status-processing', label: '変換中…' };
+  return { cls: 'status-queued', label: raw };
+}
+
+let pollTimer = null;
+function pollJobs() {
+  fetch('/api/jobs').then(r => r.json()).then(jobs => {
+    if (!jobs.length) return;
+    jobsSection.style.display = 'block';
+    jobsBody.innerHTML = '';
+    let allDone = true;
+    for (const j of jobs) {
+      const info = statusInfo(j.status);
+      if (!['done', 'skipped'].includes(j.status) && !j.status.startsWith('error')) allDone = false;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${j.filename}</td>
+        <td><span class="status-pill ${info.cls}">${info.label}</span></td>
+        <td class="outpath">${j.status === 'done' ? j.output_dir : ''}</td>
+      `;
+      jobsBody.appendChild(tr);
+    }
+    if (allDone) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+      startBtn.disabled = pendingFiles.length === 0;
+      startBtn.textContent = '変換開始';
+    }
+  });
+}
+
+startBtn.addEventListener('click', async () => {
+  showBanner('');
+  startBtn.disabled = true;
+  startBtn.textContent = '変換中…';
+
+  const form = new FormData();
+  for (const f of pendingFiles) form.append('files', f);
+  form.append('drop_headers_footers', document.getElementById('opt-headers').checked);
+  form.append('obsidian_wiklinks', document.getElementById('opt-wiklinks').checked);
+  form.append('front_matter', document.getElementById('opt-frontmatter').checked);
+  form.append('split_chapters', document.getElementById('opt-split').checked);
+  form.append('skip_existing', document.getElementById('opt-skip').checked);
+
+  const resp = await fetch('/api/convert', { method: 'POST', body: form });
+  const data = await resp.json();
+  if (data.error) {
+    showBanner(data.error);
+    startBtn.disabled = pendingFiles.length === 0;
+    startBtn.textContent = '変換開始';
+    return;
+  }
+  pendingFiles = [];
+  renderFileList();
+  pollTimer = setInterval(pollJobs, 1500);
+  pollJobs();
+});
+</script>
+</body>
+</html>

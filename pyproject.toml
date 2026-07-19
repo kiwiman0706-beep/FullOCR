@@ -1,0 +1,55 @@
+[project]
+name = "fullocr"
+version = "0.1.0"
+description = "自炊した挿絵付き専門書PDFを、NDLOCR-Lite + Marker で高精度にMarkdown化するバッチ/GUIツール（Obsidian最適化）"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "FullOCR" }]
+license = { text = "MIT" }
+
+# コア（IR統合・Markdown生成・バッチ制御）は軽量依存のみ。
+# NDLOCR-Lite / Marker はオプション扱い（別途セットアップ or 将来的にexeへ同梱）。
+dependencies = [
+    "typer>=0.12",
+    "rich>=13.7",
+    "pydantic>=2.6",
+    "Pillow>=10.2",
+]
+
+[project.optional-dependencies]
+# 構造解析エンジン（いずれもCPU可だがモデルDLあり）。engine 設定で選択。
+docling = ["docling>=2.27"]        # 推奨エンジン
+mineru = ["mineru>=2.0"]           # 数式・表が濃い専門書向け
+marker = ["marker-pdf>=1.0"]       # 軽量・英語主体向け
+# 図切り出し・ページ描画。
+pdf = ["pymupdf>=1.24"]
+# 開発・テスト用。
+dev = ["pytest>=8.0", "ruff>=0.4"]
+# 将来のGUI（ローカルWeb GUI）。
+gui = ["fastapi>=0.110", "uvicorn>=0.29", "pywebview>=5.0", "python-multipart>=0.0.9"]
+
+[project.scripts]
+fullocr = "fullocr.cli:app"
+
+# 構造エンジンは1つだけ選んで入れる想定（同時インストールしない）。
+# marker(pillow<11) と mineru(pillow>=11) は依存が非互換なため、uv には
+# 相互排他の extras として宣言し、別々に解決させる。
+[tool.uv]
+conflicts = [
+    [{ extra = "docling" }, { extra = "mineru" }, { extra = "marker" }],
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fullocr"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

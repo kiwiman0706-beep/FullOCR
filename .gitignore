@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv*/
+venv/
+.uv/
+
+# Test / cache
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Models / weights (同梱exe化まではリポジトリに入れない)
+models/
+*.onnx
+*.pt
+*.safetensors
+
+# 処理データ・出力
+work/
+out/
+gui_uploads/
+sample/
+*.pdf
+!tests/**/*.pdf
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.claude/

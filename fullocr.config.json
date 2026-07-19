@@ -1,0 +1,35 @@
+{
+  "engine": "docling",
+  "ndl": {
+    "enabled": true,
+    "command": "ndlocr-lite --sourcepdf {input} --output {outdir}",
+    "json_glob": "**/*.json",
+    "pdf_glob": "**/*_text.pdf"
+  },
+  "docling": {
+    "enabled": true,
+    "command": "docling convert {input} --to json --output {outdir} --no-ocr",
+    "json_glob": "**/*.json"
+  },
+  "mineru": {
+    "enabled": true,
+    "command": "mineru -p {input} -o {outdir}",
+    "json_glob": "**/*middle.json"
+  },
+  "marker": {
+    "enabled": true,
+    "command": "marker_single {input} --output_format json --output_dir {outdir}",
+    "json_glob": "**/*.json",
+    "disable_ocr": true
+  },
+  "render": {
+    "obsidian_wiklinks": true,
+    "images_dirname": "attachments",
+    "split_by_heading_level": null,
+    "front_matter": true,
+    "drop_headers_footers": true
+  },
+  "work_dir": "work",
+  "out_dir": "out",
+  "assign_overlap_threshold": 0.3
+}
