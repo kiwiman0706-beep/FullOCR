@@ -24,6 +24,7 @@ models/
 work/
 out/
 gui_uploads/
+fullocr_gui_settings.json
 sample/
 *.pdf
 !tests/**/*.pdf

@@ -43,14 +43,25 @@
   }
   .file-row .rm:hover{color:var(--bad);}
 
-  .options{
-    margin-top:24px; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px 18px;
-  }
-  .options h2{font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); margin:0 0 12px; font-weight:600;}
+  .card{margin-top:24px; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px 18px;}
+  .card h2{font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); margin:0 0 12px; font-weight:600;}
   .opt-row{display:flex; align-items:flex-start; gap:10px; padding:7px 0;}
-  .opt-row input{margin-top:3px;}
+  .opt-row input[type=checkbox]{margin-top:3px;}
   .opt-row label{font-size:14px; cursor:pointer;}
   .opt-row .desc{font-size:12px; color:var(--ink-soft); margin-top:2px;}
+
+  .outdir-row{display:flex; gap:8px;}
+  .outdir-row input{
+    flex:1; padding:9px 12px; font-size:13px; border:1px solid var(--line);
+    border-radius:6px; background:var(--bg); color:var(--ink); min-width:0;
+  }
+  .field{width:100%; padding:8px 10px; font-size:13px; border:1px solid var(--line);
+    border-radius:6px; background:var(--bg); color:var(--ink); margin-top:8px;}
+  .btn{padding:9px 14px; font-size:13px; white-space:nowrap; cursor:pointer;
+    border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink);}
+  .btn:hover{background:var(--accent-soft);}
+  .desc{font-size:12px; color:var(--ink-soft); margin-top:8px;}
+  .remember-row{display:flex; align-items:center; gap:8px; margin-top:8px; font-size:13px; color:var(--ink-soft);}
 
   button.primary{
     margin-top:20px; width:100%; padding:12px; font-size:15px; font-weight:600;
@@ -61,8 +72,15 @@
 
   .jobs{margin-top:28px;}
   .jobs h2{font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); margin:0 0 12px; font-weight:600;}
+  .job-controls{display:flex; gap:8px; margin-bottom:10px;}
+  .job-controls button{
+    padding:7px 14px; font-size:13px; cursor:pointer; border:1px solid var(--line);
+    border-radius:6px; background:var(--bg); color:var(--ink);
+  }
+  .job-controls button:hover{background:var(--accent-soft);}
+  .job-controls button.paused{background:var(--warn); color:#fff; border-color:var(--warn);}
   table{width:100%; border-collapse:collapse; font-size:13px; background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden;}
-  th,td{padding:9px 12px; text-align:left; border-bottom:1px solid var(--line);}
+  th,td{padding:9px 12px; text-align:left; border-bottom:1px solid var(--line); vertical-align:top;}
   tr:last-child td{border-bottom:none;}
   th{font-size:11px; text-transform:uppercase; color:var(--ink-soft); font-weight:500;}
   .status-pill{display:inline-block; padding:2px 8px; border-radius:99px; font-size:11px; font-weight:600;}
@@ -71,27 +89,20 @@
   .status-done{background:#e2ede7; color:var(--good);}
   .status-skipped{background:#eee; color:var(--ink-soft);}
   .status-error{background:#f6dcdc; color:var(--bad);}
+  .status-canceled{background:#eee; color:var(--ink-soft);}
   .outpath{font-size:11px; color:var(--ink-soft); word-break:break-all;}
+  .open-link{color:var(--accent); cursor:pointer; text-decoration:underline;}
+  .rowbtns{display:flex; gap:4px;}
+  .rowbtns button{
+    border:1px solid var(--line); background:var(--bg); color:var(--ink-soft);
+    border-radius:5px; cursor:pointer; font-size:12px; line-height:1; padding:3px 7px;
+  }
+  .rowbtns button:hover{background:var(--accent-soft); color:var(--accent);}
 
   .banner{
     margin-top:16px; padding:10px 14px; border-radius:6px; font-size:13px;
     background:#f6dcdc; color:var(--bad); display:none;
   }
-
-  .outdir{margin-top:24px; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px 18px;}
-  .outdir h2{font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); margin:0 0 10px; font-weight:600;}
-  .outdir-row{display:flex; gap:8px;}
-  .outdir-row input{
-    flex:1; padding:9px 12px; font-size:13px; border:1px solid var(--line);
-    border-radius:6px; background:var(--bg); color:var(--ink); min-width:0;
-  }
-  .outdir-row button{
-    padding:9px 14px; font-size:13px; white-space:nowrap; cursor:pointer;
-    border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink);
-  }
-  .outdir-row button:hover{background:var(--accent-soft);}
-  .outdir .desc{font-size:12px; color:var(--ink-soft); margin-top:8px;}
-  .open-link{color:var(--accent); cursor:pointer; text-decoration:underline;}
 </style>
 </head>
 <body>
@@ -108,17 +119,17 @@
 
   <div class="filelist" id="fileList"></div>
 
-  <div class="outdir">
+  <div class="card">
     <h2>保存先フォルダ</h2>
     <div class="outdir-row">
       <input type="text" id="outDir" placeholder="未指定なら アプリと同じ場所の out フォルダ に保存" readonly />
-      <button type="button" id="browseBtn">参照…</button>
-      <button type="button" id="clearOutBtn">既定に戻す</button>
+      <button type="button" class="btn" id="browseBtn">参照…</button>
+      <button type="button" class="btn" id="clearOutBtn">既定に戻す</button>
     </div>
     <div class="desc">Obsidianの保管庫フォルダを選べば、変換結果を直接そこに書き出せます。</div>
   </div>
 
-  <div class="options">
+  <div class="card">
     <h2>オプション</h2>
     <div class="opt-row">
       <input type="checkbox" id="opt-headers" checked />
@@ -147,9 +158,13 @@
     </div>
     <div class="opt-row">
       <input type="checkbox" id="opt-llm" />
-      <div><label for="opt-llm">AIで見出し構造を整える（Gemini・要APIキー）</label>
-        <div class="desc">見出しの階層(H1〜H6)をAIが本の目次に沿って付け直し、アウトライン表示を本のとおりのツリーにします。あわせて構成の評価(_structure_review.md)も出力します。</div>
-        <input type="password" id="llmKey" placeholder="Gemini APIキー（環境変数 GEMINI_API_KEY があれば空欄でOK）" style="margin-top:8px; width:100%; padding:8px 10px; font-size:13px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink);" />
+      <div style="flex:1;"><label for="opt-llm">AIで見出し構造を整える（Gemini・要APIキー）</label>
+        <div class="desc">見出しの階層(H1〜H6)をAIが本の目次に沿って付け直し、アウトライン表示を本のとおりのツリーにします。構成の評価(_structure_review.md)も出力します。</div>
+        <input type="password" class="field" id="llmKey" placeholder="Gemini APIキー（環境変数 GEMINI_API_KEY があれば空欄でOK）" />
+        <div class="remember-row">
+          <input type="checkbox" id="opt-remember" />
+          <label for="opt-remember">このキー・設定をこのPCに記憶する（ローカルのみ・平文保存）</label>
+        </div>
       </div>
     </div>
   </div>
@@ -160,32 +175,50 @@
 
   <div class="jobs" id="jobsSection" style="display:none;">
     <h2>進捗</h2>
+    <div class="job-controls">
+      <button type="button" id="pauseBtn">一時停止</button>
+      <button type="button" id="stopBtn">中止</button>
+    </div>
     <table>
-      <thead><tr><th>ファイル</th><th>状態</th><th>出力先</th></tr></thead>
+      <thead><tr><th>ファイル</th><th>状態</th><th>出力先</th><th>操作</th></tr></thead>
       <tbody id="jobsBody"></tbody>
     </table>
   </div>
 </div>
 
 <script>
-const dropzone = document.getElementById('dropzone');
-const fileInput = document.getElementById('fileInput');
-const fileListEl = document.getElementById('fileList');
-const startBtn = document.getElementById('startBtn');
-const banner = document.getElementById('banner');
-const jobsSection = document.getElementById('jobsSection');
-const jobsBody = document.getElementById('jobsBody');
-
-const outDirEl = document.getElementById('outDir');
-const browseBtn = document.getElementById('browseBtn');
-const clearOutBtn = document.getElementById('clearOutBtn');
+const $ = (id) => document.getElementById(id);
+const dropzone = $('dropzone'), fileInput = $('fileInput'), fileListEl = $('fileList');
+const startBtn = $('startBtn'), banner = $('banner');
+const jobsSection = $('jobsSection'), jobsBody = $('jobsBody');
+const outDirEl = $('outDir'), browseBtn = $('browseBtn'), clearOutBtn = $('clearOutBtn');
+const pauseBtn = $('pauseBtn'), stopBtn = $('stopBtn');
+const llmKeyEl = $('llmKey'), optLlm = $('opt-llm'), optRemember = $('opt-remember');
 
 let pendingFiles = [];
+let paused = false;
 
-function nativeApi() {
-  return (window.pywebview && window.pywebview.api) ? window.pywebview.api : null;
-}
+function esc(s){ const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+function nativeApi(){ return (window.pywebview && window.pywebview.api) ? window.pywebview.api : null; }
+function showBanner(msg){ banner.textContent = msg; banner.style.display = msg ? 'block' : 'none'; }
 
+// ---- 保存済み設定の読み込み（APIキー・オプション） ----
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const s = await (await fetch('/api/settings')).json();
+    if (s && s.remember) {
+      optRemember.checked = true;
+      if (s.llm_api_key) llmKeyEl.value = s.llm_api_key;
+      if (s.opt) {
+        for (const [id, val] of Object.entries(s.opt)) {
+          const el = $(id); if (el && el.type === 'checkbox') el.checked = !!val;
+        }
+      }
+    }
+  } catch (e) { /* 設定なし */ }
+});
+
+// ---- フォルダ選択（ネイティブ） ----
 browseBtn.addEventListener('click', async () => {
   const api = nativeApi();
   if (!api) { showBanner('フォルダ選択はデスクトップアプリでのみ利用できます。'); return; }
@@ -193,133 +226,142 @@ browseBtn.addEventListener('click', async () => {
   if (path) outDirEl.value = path;
 });
 clearOutBtn.addEventListener('click', () => { outDirEl.value = ''; });
+function openFolder(path){ const api = nativeApi(); if (api) api.open_path(path); }
 
-// 完了ジョブの出力先クリックで、そのフォルダをOSで開く。
-function openFolder(path) {
-  const api = nativeApi();
-  if (api) api.open_path(path);
-}
-
-function renderFileList() {
+// ---- ファイル選択 ----
+function renderFileList(){
   fileListEl.innerHTML = '';
   pendingFiles.forEach((f, i) => {
     const row = document.createElement('div');
     row.className = 'file-row';
-    row.innerHTML = `<span class="name">${f.name}</span>`;
+    row.innerHTML = `<span class="name">${esc(f.name)}</span>`;
     const rm = document.createElement('button');
-    rm.className = 'rm';
-    rm.textContent = '×';
+    rm.className = 'rm'; rm.textContent = '×';
     rm.onclick = () => { pendingFiles.splice(i, 1); renderFileList(); };
     row.appendChild(rm);
     fileListEl.appendChild(row);
   });
   startBtn.disabled = pendingFiles.length === 0;
 }
-
-function addFiles(fileArray) {
-  for (const f of fileArray) {
-    if (f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')) {
-      pendingFiles.push(f);
-    }
+function addFiles(arr){
+  for (const f of arr) {
+    if (f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')) pendingFiles.push(f);
   }
   renderFileList();
 }
-
 dropzone.addEventListener('click', () => fileInput.click());
 fileInput.addEventListener('change', (e) => addFiles(Array.from(e.target.files)));
+['dragenter','dragover'].forEach(evt => dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add('drag'); }));
+['dragleave','drop'].forEach(evt => dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove('drag'); }));
+dropzone.addEventListener('drop', (e) => addFiles(Array.from(e.dataTransfer.files)));
 
-['dragenter', 'dragover'].forEach(evt =>
-  dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add('drag'); })
-);
-['dragleave', 'drop'].forEach(evt =>
-  dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove('drag'); })
-);
-dropzone.addEventListener('drop', (e) => {
-  addFiles(Array.from(e.dataTransfer.files));
-});
-
-function showBanner(msg) {
-  banner.textContent = msg;
-  banner.style.display = msg ? 'block' : 'none';
+// ---- 進捗ポーリング＆ジョブ操作 ----
+function statusInfo(raw){
+  if (raw === 'done') return { cls:'status-done', label:'完了' };
+  if (raw === 'skipped') return { cls:'status-skipped', label:'スキップ' };
+  if (raw === 'canceled') return { cls:'status-canceled', label:'キャンセル' };
+  if (raw === 'queued') return { cls:'status-queued', label:'待機中' };
+  if (raw.startsWith('error')) return { cls:'status-error', label:'エラー' };
+  if (raw === 'processing') return { cls:'status-processing', label:'変換中…' };
+  return { cls:'status-queued', label: raw };
 }
 
-const STATUS_LABEL = {
-  queued: 'キュー待ち',
-  skipped: 'スキップ',
-  done: '完了',
-};
-function statusInfo(raw) {
-  if (raw === 'done') return { cls: 'status-done', label: '完了' };
-  if (raw === 'skipped') return { cls: 'status-skipped', label: 'スキップ' };
-  if (raw === 'queued') return { cls: 'status-queued', label: 'キュー待ち' };
-  if (raw.startsWith('error')) return { cls: 'status-error', label: raw };
-  if (raw.startsWith('processing')) return { cls: 'status-processing', label: '変換中…' };
-  return { cls: 'status-queued', label: raw };
+async function jobAction(url){ await fetch(url, { method:'POST' }); pollJobs(); }
+
+function renderJobs(jobs){
+  jobsBody.innerHTML = '';
+  for (const j of jobs) {
+    const info = statusInfo(j.status);
+    const tr = document.createElement('tr');
+
+    const tdName = document.createElement('td'); tdName.textContent = j.filename;
+    const tdStat = document.createElement('td');
+    tdStat.innerHTML = `<span class="status-pill ${info.cls}">${info.label}</span>`;
+    const tdPath = document.createElement('td'); tdPath.className = 'outpath';
+    if (j.status === 'done' || j.status === 'skipped') {
+      const link = document.createElement('span');
+      link.className = 'open-link'; link.title = 'フォルダを開く';
+      link.textContent = '📂 ' + j.output_dir;
+      link.addEventListener('click', () => openFolder(j.output_dir));
+      tdPath.appendChild(link);
+    }
+    const tdOps = document.createElement('td');
+    if (j.pending) {
+      const box = document.createElement('div'); box.className = 'rowbtns';
+      const up = document.createElement('button'); up.textContent = '↑'; up.title = '上へ';
+      up.onclick = () => jobAction(`/api/jobs/${j.job_id}/move?direction=up`);
+      const dn = document.createElement('button'); dn.textContent = '↓'; dn.title = '下へ';
+      dn.onclick = () => jobAction(`/api/jobs/${j.job_id}/move?direction=down`);
+      const sk = document.createElement('button'); sk.textContent = 'スキップ';
+      sk.onclick = () => jobAction(`/api/jobs/${j.job_id}/skip`);
+      box.append(up, dn, sk);
+      tdOps.appendChild(box);
+    }
+    tr.append(tdName, tdStat, tdPath, tdOps);
+    jobsBody.appendChild(tr);
+  }
 }
 
 let pollTimer = null;
-function pollJobs() {
-  fetch('/api/jobs').then(r => r.json()).then(jobs => {
-    if (!jobs.length) return;
-    jobsSection.style.display = 'block';
-    jobsBody.innerHTML = '';
-    let allDone = true;
-    for (const j of jobs) {
-      const info = statusInfo(j.status);
-      if (!['done', 'skipped'].includes(j.status) && !j.status.startsWith('error')) allDone = false;
-      const tr = document.createElement('tr');
-      const showPath = j.status === 'done' || j.status === 'skipped';
-      const pathCell = showPath
-        ? `<span class="open-link" title="フォルダを開く">📂 ${j.output_dir}</span>`
-        : '';
-      tr.innerHTML = `
-        <td>${j.filename}</td>
-        <td><span class="status-pill ${info.cls}">${info.label}</span></td>
-        <td class="outpath">${pathCell}</td>
-      `;
-      if (showPath) {
-        const link = tr.querySelector('.open-link');
-        if (link) link.addEventListener('click', () => openFolder(j.output_dir));
-      }
-      jobsBody.appendChild(tr);
-    }
-    if (allDone) {
-      clearInterval(pollTimer);
-      pollTimer = null;
+async function pollJobs(){
+  try {
+    const [jobs, st] = await Promise.all([
+      fetch('/api/jobs').then(r => r.json()),
+      fetch('/api/status').then(r => r.json()),
+    ]);
+    if (jobs.length) { jobsSection.style.display = 'block'; renderJobs(jobs); }
+    paused = !!st.paused;
+    pauseBtn.textContent = paused ? '再開' : '一時停止';
+    pauseBtn.classList.toggle('paused', paused);
+    if (!st.running) {
       startBtn.disabled = pendingFiles.length === 0;
       startBtn.textContent = '変換開始';
+      if (pollTimer && !paused) { clearInterval(pollTimer); pollTimer = null; }
     }
-  });
+  } catch (e) { /* サーバ未応答は無視 */ }
 }
+function ensurePolling(){ if (!pollTimer) { pollTimer = setInterval(pollJobs, 1500); } pollJobs(); }
 
+pauseBtn.addEventListener('click', () => jobAction(paused ? '/api/resume' : '/api/pause'));
+stopBtn.addEventListener('click', () => jobAction('/api/stop'));
+
+// ---- 変換開始 ----
 startBtn.addEventListener('click', async () => {
   showBanner('');
-  startBtn.disabled = true;
-  startBtn.textContent = '変換中…';
+  startBtn.disabled = true; startBtn.textContent = '変換中…';
 
   const form = new FormData();
   for (const f of pendingFiles) form.append('files', f);
-  form.append('drop_headers_footers', document.getElementById('opt-headers').checked);
-  form.append('obsidian_wiklinks', document.getElementById('opt-wiklinks').checked);
-  form.append('front_matter', document.getElementById('opt-frontmatter').checked);
-  form.append('split_chapters', document.getElementById('opt-split').checked);
-  form.append('skip_existing', document.getElementById('opt-skip').checked);
+  form.append('drop_headers_footers', $('opt-headers').checked);
+  form.append('obsidian_wiklinks', $('opt-wiklinks').checked);
+  form.append('front_matter', $('opt-frontmatter').checked);
+  form.append('split_chapters', $('opt-split').checked);
+  form.append('skip_existing', $('opt-skip').checked);
   form.append('out_dir', outDirEl.value || '');
-  form.append('llm_structure', document.getElementById('opt-llm').checked);
-  form.append('llm_api_key', document.getElementById('llmKey').value || '');
+  form.append('llm_structure', optLlm.checked);
+  form.append('llm_api_key', llmKeyEl.value || '');
 
-  const resp = await fetch('/api/convert', { method: 'POST', body: form });
+  // 設定を記憶（任意）。remember=false なら保存済みを削除。
+  const settings = {
+    remember: optRemember.checked,
+    llm_api_key: llmKeyEl.value || '',
+    opt: {
+      'opt-headers': $('opt-headers').checked, 'opt-wiklinks': $('opt-wiklinks').checked,
+      'opt-frontmatter': $('opt-frontmatter').checked, 'opt-split': $('opt-split').checked,
+      'opt-skip': $('opt-skip').checked, 'opt-llm': optLlm.checked,
+    },
+  };
+  fetch('/api/settings', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(settings) });
+
+  const resp = await fetch('/api/convert', { method:'POST', body: form });
   const data = await resp.json();
   if (data.error) {
     showBanner(data.error);
-    startBtn.disabled = pendingFiles.length === 0;
-    startBtn.textContent = '変換開始';
+    startBtn.disabled = pendingFiles.length === 0; startBtn.textContent = '変換開始';
     return;
   }
-  pendingFiles = [];
-  renderFileList();
-  pollTimer = setInterval(pollJobs, 1500);
-  pollJobs();
+  pendingFiles = []; renderFileList();
+  ensurePolling();
 });
 </script>
 </body>
