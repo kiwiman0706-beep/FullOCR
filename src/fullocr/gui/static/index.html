@@ -77,6 +77,21 @@
     margin-top:16px; padding:10px 14px; border-radius:6px; font-size:13px;
     background:#f6dcdc; color:var(--bad); display:none;
   }
+
+  .outdir{margin-top:24px; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px 18px;}
+  .outdir h2{font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); margin:0 0 10px; font-weight:600;}
+  .outdir-row{display:flex; gap:8px;}
+  .outdir-row input{
+    flex:1; padding:9px 12px; font-size:13px; border:1px solid var(--line);
+    border-radius:6px; background:var(--bg); color:var(--ink); min-width:0;
+  }
+  .outdir-row button{
+    padding:9px 14px; font-size:13px; white-space:nowrap; cursor:pointer;
+    border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink);
+  }
+  .outdir-row button:hover{background:var(--accent-soft);}
+  .outdir .desc{font-size:12px; color:var(--ink-soft); margin-top:8px;}
+  .open-link{color:var(--accent); cursor:pointer; text-decoration:underline;}
 </style>
 </head>
 <body>
@@ -92,6 +107,16 @@
   </div>
 
   <div class="filelist" id="fileList"></div>
+
+  <div class="outdir">
+    <h2>保存先フォルダ</h2>
+    <div class="outdir-row">
+      <input type="text" id="outDir" placeholder="未指定なら アプリと同じ場所の out フォルダ に保存" readonly />
+      <button type="button" id="browseBtn">参照…</button>
+      <button type="button" id="clearOutBtn">既定に戻す</button>
+    </div>
+    <div class="desc">Obsidianの保管庫フォルダを選べば、変換結果を直接そこに書き出せます。</div>
+  </div>
 
   <div class="options">
     <h2>オプション</h2>
@@ -144,7 +169,29 @@ const banner = document.getElementById('banner');
 const jobsSection = document.getElementById('jobsSection');
 const jobsBody = document.getElementById('jobsBody');
 
+const outDirEl = document.getElementById('outDir');
+const browseBtn = document.getElementById('browseBtn');
+const clearOutBtn = document.getElementById('clearOutBtn');
+
 let pendingFiles = [];
+
+function nativeApi() {
+  return (window.pywebview && window.pywebview.api) ? window.pywebview.api : null;
+}
+
+browseBtn.addEventListener('click', async () => {
+  const api = nativeApi();
+  if (!api) { showBanner('フォルダ選択はデスクトップアプリでのみ利用できます。'); return; }
+  const path = await api.pick_folder();
+  if (path) outDirEl.value = path;
+});
+clearOutBtn.addEventListener('click', () => { outDirEl.value = ''; });
+
+// 完了ジョブの出力先クリックで、そのフォルダをOSで開く。
+function openFolder(path) {
+  const api = nativeApi();
+  if (api) api.open_path(path);
+}
 
 function renderFileList() {
   fileListEl.innerHTML = '';
@@ -214,11 +261,19 @@ function pollJobs() {
       const info = statusInfo(j.status);
       if (!['done', 'skipped'].includes(j.status) && !j.status.startsWith('error')) allDone = false;
       const tr = document.createElement('tr');
+      const showPath = j.status === 'done' || j.status === 'skipped';
+      const pathCell = showPath
+        ? `<span class="open-link" title="フォルダを開く">📂 ${j.output_dir}</span>`
+        : '';
       tr.innerHTML = `
         <td>${j.filename}</td>
         <td><span class="status-pill ${info.cls}">${info.label}</span></td>
-        <td class="outpath">${j.status === 'done' ? j.output_dir : ''}</td>
+        <td class="outpath">${pathCell}</td>
       `;
+      if (showPath) {
+        const link = tr.querySelector('.open-link');
+        if (link) link.addEventListener('click', () => openFolder(j.output_dir));
+      }
       jobsBody.appendChild(tr);
     }
     if (allDone) {
@@ -242,6 +297,7 @@ startBtn.addEventListener('click', async () => {
   form.append('front_matter', document.getElementById('opt-frontmatter').checked);
   form.append('split_chapters', document.getElementById('opt-split').checked);
   form.append('skip_existing', document.getElementById('opt-skip').checked);
+  form.append('out_dir', outDirEl.value || '');
 
   const resp = await fetch('/api/convert', { method: 'POST', body: form });
   const data = await resp.json();

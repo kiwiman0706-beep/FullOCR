@@ -23,7 +23,20 @@ from ..config import PipelineConfig, RenderConfig
 app = FastAPI(title="FullOCR")
 
 STATIC_DIR = Path(__file__).parent / "static"
-UPLOAD_DIR = Path("gui_uploads")
+
+
+def _base_dir() -> Path:
+    """出力・作業フォルダの基準ディレクトリ。
+
+    凍結exe(ダブルクリック起動)では起動時の作業ディレクトリが不定なので、
+    exe自身の場所を基準にして「必ず見つかる」場所に出力する。開発時は CWD。
+    """
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent
+    return Path.cwd()
+
+
+UPLOAD_DIR = _base_dir() / "gui_uploads"
 
 _lock = threading.Lock()
 _jobs: dict[str, dict] = {}
@@ -40,6 +53,12 @@ def _base_config() -> PipelineConfig:
     """
     config_path = Path("fullocr.config.json")
     cfg = PipelineConfig.load(config_path) if config_path.exists() else PipelineConfig()
+    # 出力・作業フォルダを基準ディレクトリ配下の絶対パスにする（CWD 依存を排除し、
+    # 「どこに保存されたか」を常に findable にする）。GUI で保存先が指定されたら
+    # convert() 側で out_dir を上書きする。
+    base = _base_dir()
+    cfg.out_dir = base / "out"
+    cfg.work_dir = base / "work"
     if getattr(sys, "frozen", False):
         ndl_exe = Path(sys.executable).parent / "ndlocr-lite" / "ndlocr-lite.exe"
         if ndl_exe.exists():
@@ -77,6 +96,7 @@ async def convert(
     front_matter: bool = Form(True),
     split_chapters: bool = Form(False),
     skip_existing: bool = Form(True),
+    out_dir: str = Form(""),
 ) -> dict:
     global _batch_running
 
@@ -91,6 +111,9 @@ async def convert(
         old.unlink()
 
     cfg = _base_config()
+    # GUI で保存先が指定されていればそれを使う（未指定なら基準ディレクトリの out/）。
+    if out_dir.strip():
+        cfg.out_dir = Path(out_dir.strip())
     cfg.render = RenderConfig(
         drop_headers_footers=drop_headers_footers,
         obsidian_wiklinks=obsidian_wiklinks,
