@@ -145,6 +145,13 @@
       <div><label for="opt-skip">変換済みのファイルはスキップする</label>
         <div class="desc">同じ本を再度ドロップしても、既に出力があれば再変換しません。</div></div>
     </div>
+    <div class="opt-row">
+      <input type="checkbox" id="opt-llm" />
+      <div><label for="opt-llm">AIで見出し構造を整える（Gemini・要APIキー）</label>
+        <div class="desc">見出しの階層(H1〜H6)をAIが本の目次に沿って付け直し、アウトライン表示を本のとおりのツリーにします。あわせて構成の評価(_structure_review.md)も出力します。</div>
+        <input type="password" id="llmKey" placeholder="Gemini APIキー（環境変数 GEMINI_API_KEY があれば空欄でOK）" style="margin-top:8px; width:100%; padding:8px 10px; font-size:13px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink);" />
+      </div>
+    </div>
   </div>
 
   <div class="banner" id="banner"></div>
@@ -298,6 +305,8 @@ startBtn.addEventListener('click', async () => {
   form.append('split_chapters', document.getElementById('opt-split').checked);
   form.append('skip_existing', document.getElementById('opt-skip').checked);
   form.append('out_dir', outDirEl.value || '');
+  form.append('llm_structure', document.getElementById('opt-llm').checked);
+  form.append('llm_api_key', document.getElementById('llmKey').value || '');
 
   const resp = await fetch('/api/convert', { method: 'POST', body: form });
   const data = await resp.json();

@@ -75,6 +75,35 @@ class MinerUConfig(BaseModel):
     json_glob: str = "**/*middle.json"
 
 
+class StructureLLMConfig(BaseModel):
+    """LLM による構造化パス（見出し階層の付与＋構成の評価）。
+
+    Markdown 化の主目的である「目次・構造化」の品質を上げるための任意ステップ。
+    Docling/MinerU は見出しレベルを一律にしか返さない（＝アウトラインが平坦）ので、
+    LLM に見出し列＋文脈を渡して H1〜H6 の階層を割り当て、誤検出見出しは本文へ降格し、
+    さらに「本の実目次と一致しているか／Markdown構成として適切か」を評価レポートにする。
+
+    プロバイダは差し替え可能（provider）。APIキーは環境変数 or GUI 入力（api_key）。
+    キーが無ければパス全体を自動スキップ（＝オフでも従来通り動く）。
+    """
+
+    enabled: bool = False
+    # 見出し階層を LLM で付与し直すか。
+    assign_hierarchy: bool = True
+    # 構成の評価レポート(_structure_review.md)を出すか。
+    review: bool = True
+    # プロバイダ（今は gemini。将来 openai / anthropic 等に差し替え可能）。
+    provider: str = "gemini"
+    model: str = "gemini-2.5-flash"
+    # API キーを読む環境変数名。未設定時は api_key を直接使う（GUI 入力用）。
+    api_key_env: str = "GEMINI_API_KEY"
+    api_key: str = ""
+    # 精度向上のため巻頭テキスト（印刷された目次が載っていることが多い）を参照に渡す。
+    reference_head_chars: int = 8000
+    # 各見出し直後の本文スニペットの長さ（見出しか否かの判断材料）。
+    snippet_chars: int = 60
+
+
 class RenderConfig(BaseModel):
     """Markdown / Obsidian 出力設定。"""
 
@@ -100,6 +129,7 @@ class PipelineConfig(BaseModel):
     docling: DoclingConfig = Field(default_factory=DoclingConfig)
     mineru: MinerUConfig = Field(default_factory=MinerUConfig)
     marker: MarkerConfig = Field(default_factory=MarkerConfig)
+    structure_llm: StructureLLMConfig = Field(default_factory=StructureLLMConfig)
     render: RenderConfig = Field(default_factory=RenderConfig)
 
     # 作業ディレクトリ（中間生成物）。

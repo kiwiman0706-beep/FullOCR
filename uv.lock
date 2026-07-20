@@ -27,7 +27,8 @@ resolution-markers = [
     "python_full_version < '3.12' and sys_platform == 'win32' and extra == 'extra-7-fullocr-docling' and extra != 'extra-7-fullocr-marker' and extra != 'extra-7-fullocr-mineru'",
     "python_full_version < '3.12' and sys_platform == 'emscripten' and extra == 'extra-7-fullocr-docling' and extra != 'extra-7-fullocr-marker' and extra != 'extra-7-fullocr-mineru'",
     "python_full_version < '3.12' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra == 'extra-7-fullocr-docling' and extra != 'extra-7-fullocr-marker' and extra != 'extra-7-fullocr-mineru'",
-    "extra != 'extra-7-fullocr-docling' and extra != 'extra-7-fullocr-marker' and extra != 'extra-7-fullocr-mineru'",
+    "python_full_version >= '3.14' and extra != 'extra-7-fullocr-docling' and extra != 'extra-7-fullocr-marker' and extra != 'extra-7-fullocr-mineru'",
+    "python_full_version < '3.14' and extra != 'extra-7-fullocr-docling' and extra != 'extra-7-fullocr-marker' and extra != 'extra-7-fullocr-mineru'",
 ]
 conflicts = [[
     { package = "fullocr", extra = "docling" },
@@ -163,7 +164,7 @@ name = "cffi"
 version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pycparser", marker = "(implementation_name != 'PyPy' and sys_platform == 'win32') or (implementation_name != 'PyPy' and extra != 'extra-7-fullocr-docling') or (extra == 'extra-7-fullocr-docling' and extra == 'extra-7-fullocr-marker') or (extra == 'extra-7-fullocr-docling' and extra == 'extra-7-fullocr-mineru') or (extra == 'extra-7-fullocr-marker' and extra == 'extra-7-fullocr-mineru')" },
+    { name = "pycparser", marker = "implementation_name != 'PyPy' or (extra == 'extra-7-fullocr-docling' and extra == 'extra-7-fullocr-marker') or (extra == 'extra-7-fullocr-docling' and extra == 'extra-7-fullocr-mineru') or (extra == 'extra-7-fullocr-marker' and extra == 'extra-7-fullocr-mineru')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/57/5f/ff100cae70ebe9d8df1c01a00e510e45d9adb5c1fdda84791b199141de97/cffi-2.1.0.tar.gz", hash = "sha256:efc1cdd798b1aaf39b4610bba7aad28c9bea9b910f25c784ccf9ec1fa719d1f9", size = 531036, upload-time = "2026-07-06T21:34:30.382Z" }
 wheels = [
@@ -398,7 +399,7 @@ name = "cryptography"
 version = "49.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cffi", marker = "platform_python_implementation != 'PyPy'" },
+    { name = "cffi", marker = "platform_python_implementation != 'PyPy' or (extra == 'extra-7-fullocr-docling' and extra == 'extra-7-fullocr-marker') or (extra == 'extra-7-fullocr-docling' and extra == 'extra-7-fullocr-mineru') or (extra == 'extra-7-fullocr-marker' and extra == 'extra-7-fullocr-mineru')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1f/99/d1c90d6041656cc6ee229dc99cd67fd0cd5aec3c5f7d72fffc27cc750054/cryptography-49.0.0.tar.gz", hash = "sha256:f89660a348f4f78a92366240a61404e337586ef7f5909a2fef59ca88ef505493", size = 854345, upload-time = "2026-06-12T20:02:30.512Z" }
 wheels = [
@@ -928,6 +929,9 @@ gui = [
     { name = "pywebview" },
     { name = "uvicorn" },
 ]
+llm = [
+    { name = "google-genai" },
+]
 marker = [
     { name = "marker-pdf" },
 ]
@@ -942,6 +946,7 @@ pdf = [
 requires-dist = [
     { name = "docling", marker = "extra == 'docling'", specifier = ">=2.27" },
     { name = "fastapi", marker = "extra == 'gui'", specifier = ">=0.110" },
+    { name = "google-genai", marker = "extra == 'llm'", specifier = ">=1.0" },
     { name = "marker-pdf", marker = "extra == 'marker'", specifier = ">=1.0" },
     { name = "mineru", marker = "extra == 'mineru'", specifier = ">=2.0" },
     { name = "pillow", specifier = ">=10.2" },
@@ -955,7 +960,7 @@ requires-dist = [
     { name = "typer", specifier = ">=0.12" },
     { name = "uvicorn", marker = "extra == 'gui'", specifier = ">=0.29" },
 ]
-provides-extras = ["docling", "mineru", "marker", "pdf", "dev", "gui"]
+provides-extras = ["docling", "mineru", "marker", "pdf", "dev", "gui", "llm"]
 
 [[package]]
 name = "google-auth"
@@ -982,7 +987,7 @@ source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "distro" },
-    { name = "google-auth", extra = ["requests"], marker = "extra == 'extra-7-fullocr-marker' or (extra == 'extra-7-fullocr-docling' and extra == 'extra-7-fullocr-mineru')" },
+    { name = "google-auth", extra = ["requests"] },
     { name = "httpx" },
     { name = "pydantic" },
     { name = "requests" },
@@ -2363,7 +2368,8 @@ resolution-markers = [
     "python_full_version < '3.12' and sys_platform == 'win32' and extra == 'extra-7-fullocr-docling' and extra != 'extra-7-fullocr-marker' and extra != 'extra-7-fullocr-mineru'",
     "python_full_version < '3.12' and sys_platform == 'emscripten' and extra == 'extra-7-fullocr-docling' and extra != 'extra-7-fullocr-marker' and extra != 'extra-7-fullocr-mineru'",
     "python_full_version < '3.12' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra == 'extra-7-fullocr-docling' and extra != 'extra-7-fullocr-marker' and extra != 'extra-7-fullocr-mineru'",
-    "extra != 'extra-7-fullocr-docling' and extra != 'extra-7-fullocr-marker' and extra != 'extra-7-fullocr-mineru'",
+    "python_full_version >= '3.14' and extra != 'extra-7-fullocr-docling' and extra != 'extra-7-fullocr-marker' and extra != 'extra-7-fullocr-mineru'",
+    "python_full_version < '3.14' and extra != 'extra-7-fullocr-docling' and extra != 'extra-7-fullocr-marker' and extra != 'extra-7-fullocr-mineru'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1c/3d/bb7fca845737cf9d7dbde16ed1843984665ff2e0a518f5db43e77ec540b9/pillow-12.3.0.tar.gz", hash = "sha256:3b8182a766685eaa002637e28b4ec8d6b18819a0c71f579bf0dbaa5830297cce", size = 47025035, upload-time = "2026-07-01T11:56:38.965Z" }
 wheels = [
@@ -4244,7 +4250,8 @@ resolution-markers = [
     "python_full_version < '3.12' and sys_platform == 'darwin' and extra != 'extra-7-fullocr-docling' and extra == 'extra-7-fullocr-marker' and extra != 'extra-7-fullocr-mineru'",
     "python_full_version < '3.12' and platform_machine == 'aarch64' and sys_platform == 'linux' and extra != 'extra-7-fullocr-docling' and extra == 'extra-7-fullocr-marker' and extra != 'extra-7-fullocr-mineru'",
     "(python_full_version < '3.12' and platform_machine != 'aarch64' and sys_platform == 'linux' and extra != 'extra-7-fullocr-docling' and extra == 'extra-7-fullocr-marker' and extra != 'extra-7-fullocr-mineru') or (python_full_version < '3.12' and sys_platform != 'darwin' and sys_platform != 'linux' and extra != 'extra-7-fullocr-docling' and extra == 'extra-7-fullocr-marker' and extra != 'extra-7-fullocr-mineru')",
-    "extra != 'extra-7-fullocr-docling' and extra != 'extra-7-fullocr-marker' and extra != 'extra-7-fullocr-mineru'",
+    "python_full_version >= '3.14' and extra != 'extra-7-fullocr-docling' and extra != 'extra-7-fullocr-marker' and extra != 'extra-7-fullocr-mineru'",
+    "python_full_version < '3.14' and extra != 'extra-7-fullocr-docling' and extra != 'extra-7-fullocr-marker' and extra != 'extra-7-fullocr-mineru'",
 ]
 dependencies = [
     { name = "annotated-doc", marker = "extra == 'extra-7-fullocr-marker' or extra == 'extra-7-fullocr-mineru' or extra != 'extra-7-fullocr-docling'" },

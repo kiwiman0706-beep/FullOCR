@@ -24,6 +24,7 @@ from .pipeline import marker as marker_mod
 from .pipeline import merge as merge_mod
 from .pipeline import mineru as mineru_mod
 from .pipeline import ndl as ndl_mod
+from .pipeline import structure_llm as structure_mod
 from .pipeline.layout import LayoutPage
 from .render import render_document
 
@@ -107,6 +108,11 @@ def build_ir_for_pdf(
         if i < len(page_imgs):
             page.image_path = str(page_imgs[i])
 
+    # LLM 構造化パス（任意）: 見出し階層の付与＋構成評価。API キーが無ければ no-op。
+    review = structure_mod.run_structure_llm(doc, cfg.structure_llm)
+    if review:
+        doc.meta.structure_review = review
+
     return doc
 
 
@@ -127,6 +133,7 @@ def process_pdf(
 
     out_book = cfg.out_dir / pdf_path.stem
     render_document(doc, out_book, cfg.render)
+    _write_structure_review(doc, out_book)
 
     # NDL の透明テキストPDF（OCR結果の目視確認・別ツールでの再利用に使える）を
     # 作業ディレクトリから出力フォルダにもコピーしておく。
@@ -138,12 +145,24 @@ def process_pdf(
     return out_book
 
 
+def _write_structure_review(doc: Document, out_book: Path) -> None:
+    """LLM 構成評価レポートがあれば out_book に書き出す（render 後に呼ぶこと）。
+
+    render_document は out_dir の *.md を掃除するため、必ずレンダリング後に書く。
+    """
+    if doc.meta.structure_review:
+        (out_book / "_structure_review.md").write_text(
+            doc.meta.structure_review, encoding="utf-8"
+        )
+
+
 def render_from_ir(ir_path: str | Path, cfg: PipelineConfig, out_name: str | None = None) -> Path:
     """（GUI補正後などの）IR json から Markdown を再生成する。"""
     doc = Document.load(ir_path)
     name = out_name or (doc.meta.title or Path(ir_path).stem)
     out_book = cfg.out_dir / name
     render_document(doc, out_book, cfg.render)
+    _write_structure_review(doc, out_book)
     return out_book
 
 

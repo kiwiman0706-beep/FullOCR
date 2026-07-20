@@ -110,6 +110,20 @@ structure engine (layout only)  ────┘      (build_document)
   real documents put the label column and the text column in different reading-order clusters
   (`_merge_label_pairs`). If the structure engine produced nothing, falls back to NDL-only (one
   block per line, position-ordered).
+- `pipeline/structure_llm.py` + `llm/` — **optional LLM structure pass** (runs in
+  `batch.build_ir_for_pdf` after merge, before render; off unless `StructureLLMConfig.enabled`
+  AND an API key is present, else a silent no-op). This is the *chosen* fix for the flat-heading
+  problem (see Known-abandoned below): Docling/MinerU return a single heading level, so the Obsidian
+  outline is flat. The pass sends the heading list + each heading's following body snippet + the
+  document's head text (which usually contains the printed 目次) to an LLM, which returns a real
+  H1–H6 hierarchy and marks layout false-positive headings for demotion to `BODY`. It also writes a
+  `_structure_review.md` QA report (outline-vs-printed-TOC agreement, structure critique). `llm/`
+  is provider-agnostic: `llm.base.LLMClient` (a `generate(prompt)` Protocol) + `make_client()`
+  factory; `llm.gemini.GeminiClient` (google-genai, `.[llm]` extra) is the first provider, swappable
+  via `StructureLLMConfig.provider` / GUI. The real LLM call runs on the user's machine; all the
+  parse/apply/report logic is unit-tested with a fake client (`tests/test_structure_llm.py`). The
+  review string is persisted on `DocMeta.structure_review` so `_write_structure_review` can emit it
+  after `render_document` (which clears `*.md` first).
 - `render/markdown.py` + `render/toc.py` — walks the IR to produce `00_index.md` (front-matter +
   TOC) plus, if `RenderConfig.split_by_heading_level` is set, one Markdown file per chapter; crops
   figure regions out of rendered page images (needs `Pillow` + a `Page.image_path`, scaled by
@@ -155,7 +169,10 @@ findings, they aren't duplicated here.
   override. Chapter-level splitting (`RenderConfig.split_by_heading_level`) is off by default as a
   result. A future fix likely needs a different signal than bbox height (page position, distance
   from other headings, a small classifier) — or just wait for the Phase 3 GUI so a human marks
-  chapter starts once per book.
+  chapter starts once per book. **Update:** the "different signal" turned out to be an LLM —
+  `pipeline/structure_llm.py` now assigns the hierarchy (and demotes false headings) when enabled.
+  The bbox-height heuristic in `merge.assign_heading_levels` is still there but only fills `None`s;
+  the LLM pass overrides levels wholesale when it runs.
 
 ### Config drives everything environment-specific
 

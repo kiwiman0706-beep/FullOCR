@@ -97,6 +97,8 @@ async def convert(
     split_chapters: bool = Form(False),
     skip_existing: bool = Form(True),
     out_dir: str = Form(""),
+    llm_structure: bool = Form(False),
+    llm_api_key: str = Form(""),
 ) -> dict:
     global _batch_running
 
@@ -114,6 +116,11 @@ async def convert(
     # GUI で保存先が指定されていればそれを使う（未指定なら基準ディレクトリの out/）。
     if out_dir.strip():
         cfg.out_dir = Path(out_dir.strip())
+    # LLM 構造化（見出し階層＋評価）。キーは GUI 入力 or 環境変数 GEMINI_API_KEY。
+    if llm_structure:
+        cfg.structure_llm.enabled = True
+        if llm_api_key.strip():
+            cfg.structure_llm.api_key = llm_api_key.strip()
     cfg.render = RenderConfig(
         drop_headers_footers=drop_headers_footers,
         obsidian_wiklinks=obsidian_wiklinks,

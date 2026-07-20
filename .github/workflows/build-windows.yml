@@ -27,7 +27,7 @@ jobs:
         working-directory: fullocr
         run: |
           uv venv .venv
-          uv pip install --python .venv\Scripts\python.exe -e ".[docling,pdf,gui]"
+          uv pip install --python .venv\Scripts\python.exe -e ".[docling,pdf,gui,llm]"
           uv pip install --python .venv\Scripts\python.exe pyinstaller
 
       - name: Build fullocr-gui.exe

@@ -47,6 +47,17 @@ for pkg in (
     binaries += b
     hiddenimports += h
 
+# 任意依存（extra）: 入っていればバンドル、無ければ黙ってスキップ。
+# google-genai(.[llm]) は LLM 構造化パス用。名前空間パッケージ google.genai。
+for pkg in ("google.genai",):
+    try:
+        d, b, h = collect_all(pkg)
+        datas += d
+        binaries += b
+        hiddenimports += h
+    except Exception:  # noqa: BLE001 - 未インストールなら収集不要
+        pass
+
 a = Analysis(
     # 凍結時のエントリは絶対 import の薄いランチャー。app.py を直接エントリにすると
     # __main__ 実行になり `from .server import app` が相対 import で失敗する。

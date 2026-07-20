@@ -119,6 +119,8 @@ class DocMeta(BaseModel):
     title: str | None = None
     author: str | None = None
     source_pdf: str | None = None
+    # LLM 構造化パスが生成した構成評価レポート（あれば _structure_review.md に出力）。
+    structure_review: str | None = None
 
 
 class Document(BaseModel):
