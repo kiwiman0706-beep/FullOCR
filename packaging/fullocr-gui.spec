@@ -27,10 +27,21 @@ binaries = []
 hiddenimports = []
 
 # docling* / rapidocr / transformers: レイアウト・OCRモデルのコードとデータ。
+#   docling_ibm_models は Docling のレイアウト/表(TableFormer)モデルの本体。動的
+#   import されるうえ設定データ(json 等)を持つため、collect_all で明示収集しないと
+#   凍結時に ModuleNotFoundError / データ欠落で Docling 変換が落ちる。
 # webview(pywebview): Windows のバックエンド(webview.platforms.edgechromium 等)を
 #   文字列で動的 import するため、collect_all で submodule を hiddenimports に
 #   含めないと凍結時に ModuleNotFoundError になる。
-for pkg in ("docling", "docling_core", "docling_parse", "rapidocr", "transformers", "webview"):
+for pkg in (
+    "docling",
+    "docling_core",
+    "docling_parse",
+    "docling_ibm_models",
+    "rapidocr",
+    "transformers",
+    "webview",
+):
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b
