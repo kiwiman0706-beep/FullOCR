@@ -14,7 +14,7 @@ from pathlib import Path
 
 from ..config import RenderConfig
 from ..ir import Block, BlockType, Document, Page
-from .toc import build_toc, slugify, toc_to_markdown
+from .toc import build_toc, collect_headings, slugify, toc_to_markdown
 
 # 本文に出さないブロック種別（設定で頭注/柱を落とす場合）。
 _HEADER_FOOTER = {BlockType.PAGE_HEADER, BlockType.PAGE_FOOTER}
@@ -116,6 +116,35 @@ def crop_figures(doc: Document, images_dir: Path, cfg: RenderConfig) -> int:
     return count
 
 
+def _body_filename(doc: Document) -> str:
+    """分割しない場合の唯一の本文ファイル名（拡張子なし）。_split_documents と一致させる。"""
+    return slugify(doc.meta.title or "document")
+
+
+def _heading_targets(doc: Document, cfg: RenderConfig) -> list[str]:
+    """collect_headings と同じ順で、各見出しが書き込まれる本文ファイル名を返す。
+
+    _split_documents のファイル割り当てロジックと一致させること（目次リンク先が
+    実際の出力ファイルとズレないように）。
+    """
+    level = cfg.split_by_heading_level
+    if level is None:
+        single = _body_filename(doc)
+        return [single for _ in collect_headings(doc)]
+
+    targets: list[str] = []
+    current_name = "00_preface"
+    idx = 1
+    for page in doc.pages:
+        for b in page.ordered_blocks():
+            if b.type is BlockType.HEADING and b.text.strip():
+                if (b.heading_level or 1) <= level:
+                    current_name = f"{idx:02d}_{slugify(b.text)}"
+                    idx += 1
+                targets.append(current_name)
+    return targets
+
+
 def _split_documents(doc: Document, cfg: RenderConfig) -> list[tuple[str, list[str]]]:
     """(ファイル名ベース, Markdown行) の並びに分割。
 
@@ -182,8 +211,8 @@ def render_document(doc: Document, out_dir: str | Path, cfg: RenderConfig | None
 
     written: list[Path] = []
 
-    # 目次 index。
-    toc = build_toc(doc)
+    # 目次 index。各見出しの本文ファイルを解決し、ファイル横断リンクを張る。
+    toc = build_toc(doc, _heading_targets(doc, cfg))
     index_parts: list[str] = []
     if cfg.front_matter:
         index_parts.append(_front_matter(doc))

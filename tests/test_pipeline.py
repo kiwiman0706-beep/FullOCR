@@ -113,6 +113,32 @@ def test_toc_built_from_headings():
     assert any(e.text == "第一章 導入" for e in toc)
 
 
+def test_toc_links_cross_file_to_body(tmp_path):
+    """目次リンクが index 内アンカーではなく本文ファイル#見出しを指す。"""
+    cfg = PipelineConfig()
+    doc = build_document(parse_ndl_json(_ndl_fixture()), parse_marker_json(_marker_fixture()), cfg)
+    doc.meta.title = "テスト本"
+    render_document(doc, tmp_path, RenderConfig(split_by_heading_level=None))
+    index = (tmp_path / "00_index.md").read_text(encoding="utf-8")
+    # 同一ファイルアンカー [[#...]] ではなく [[本文#...]] になっている
+    assert "[[#第一章 導入]]" not in index
+    assert "[[テスト本#第一章 導入]]" in index
+    # リンク先の本文ファイルが実在する
+    assert (tmp_path / "テスト本.md").exists()
+
+
+def test_toc_bracket_heading_degrades_safely():
+    """[] を含む見出しは壊れた wikilink を出さず、ファイル先頭リンクへ劣化する。"""
+    from fullocr.render.toc import TocEntry, toc_to_markdown
+
+    entry = TocEntry(level=1, text="脳血管障害[CVD]", page=1, slug="x", target_file="本文")
+    md = toc_to_markdown([entry])
+    # アンカーを含む壊れたリンクにしない（'#' を出さない）
+    assert "#" not in md
+    # ファイルへのリンクにはなっている
+    assert "[[本文" in md
+
+
 def test_render_writes_markdown(tmp_path):
     cfg = PipelineConfig()
     doc = build_document(parse_ndl_json(_ndl_fixture()), parse_marker_json(_marker_fixture()), cfg)

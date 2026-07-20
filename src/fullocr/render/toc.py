@@ -13,6 +13,7 @@ class TocEntry:
     text: str
     page: int
     slug: str
+    target_file: str | None = None  # この見出しが書かれた本文ファイル名(拡張子なし)
     children: list["TocEntry"] = field(default_factory=list)
 
 
@@ -26,13 +27,19 @@ def collect_headings(doc: Document) -> list[tuple[int, str, int]]:
     return result
 
 
-def build_toc(doc: Document) -> list[TocEntry]:
-    """フラットな見出し列を階層ツリーへ。"""
+def build_toc(doc: Document, targets: list[str | None] | None = None) -> list[TocEntry]:
+    """フラットな見出し列を階層ツリーへ。
+
+    targets は collect_headings と同じ順の「各見出しが書かれた本文ファイル名」。
+    与えると各 TocEntry に target_file を紐付け、ファイル横断リンクを張れる。
+    """
     flat = collect_headings(doc)
+    if targets is None or len(targets) != len(flat):
+        targets = [None] * len(flat)
     root: list[TocEntry] = []
     stack: list[TocEntry] = []
-    for level, text, page in flat:
-        entry = TocEntry(level=level, text=text, page=page, slug=slugify(text))
+    for (level, text, page), target in zip(flat, targets):
+        entry = TocEntry(level=level, text=text, page=page, slug=slugify(text), target_file=target)
         while stack and stack[-1].level >= level:
             stack.pop()
         if stack:
@@ -43,6 +50,28 @@ def build_toc(doc: Document) -> list[TocEntry]:
     return root
 
 
+# wikilink の [[...]] / [[...#...]] を壊す文字。見出しにこれが含まれると
+# ファイル横断リンクのアンカー指定ができないので、その場合はファイル先頭リンクへ劣化。
+_ANCHOR_BREAK = set("[]#|^")
+
+
+def _toc_link(entry: TocEntry) -> str:
+    """TocEntry を Obsidian wikilink（表示テキスト付き）にする。"""
+    text = entry.text
+    file = entry.target_file
+    anchor_safe = not (_ANCHOR_BREAK & set(text))
+    if file:
+        if anchor_safe:
+            # 本文ファイルの該当見出しへジャンプ
+            return f"[[{file}#{text}]]"
+        # 見出しに []#|^ を含む → 見出しジャンプ不可。ファイル先頭へ飛ばし、
+        # 表示は記号を除いた読みやすい別名にする。
+        display = "".join(c for c in text if c not in _ANCHOR_BREAK).strip()
+        return f"[[{file}|{display}]]" if display else f"[[{file}]]"
+    # ファイル不明（従来動作）: 同一ファイル内アンカー
+    return f"[[#{text}]]" if anchor_safe else text
+
+
 def toc_to_markdown(entries: list[TocEntry], *, link: bool = True) -> str:
     """階層目次を Markdown の入れ子リストにする。"""
     lines: list[str] = []
@@ -50,7 +79,7 @@ def toc_to_markdown(entries: list[TocEntry], *, link: bool = True) -> str:
     def walk(items: list[TocEntry], depth: int) -> None:
         for e in items:
             indent = "  " * depth
-            label = f"[[#{e.text}]]" if link else e.text
+            label = _toc_link(e) if link else e.text
             lines.append(f"{indent}- {label}")
             walk(e.children, depth + 1)
 
