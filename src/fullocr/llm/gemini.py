@@ -32,3 +32,12 @@ class GeminiClient:
         contents = prompt if system is None else f"{system}\n\n{prompt}"
         resp = client.models.generate_content(model=self.model, contents=contents)
         return (getattr(resp, "text", "") or "").strip()
+
+    def describe_image(self, image_bytes: bytes, prompt: str) -> str:
+        """画像＋プロンプトで説明を生成（挿絵の代替テキスト用・マルチモーダル）。"""
+        client = self._ensure()
+        from google.genai import types  # 遅延 import
+
+        part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
+        resp = client.models.generate_content(model=self.model, contents=[prompt, part])
+        return (getattr(resp, "text", "") or "").strip()

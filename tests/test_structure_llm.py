@@ -104,3 +104,56 @@ def test_review_prompt_contains_outline_and_title():
     p = sl.build_review_prompt("テスト医学書", sl.outline_text(doc), "巻頭テキスト…")
     assert "テスト医学書" in p
     assert "第1章 総論" in p
+
+
+def test_rewrite_body_applies_cleaned_text():
+    doc = _doc()
+    resp = json.dumps({"items": [
+        {"i": 0, "text": "本章では総論を述べる（整形済み）。"},
+        {"i": 1, "text": "定義は次のとおり（整形済み）。"},
+    ]})
+    cfg = StructureLLMConfig(enabled=True, api_key="x", rewrite_text=True)
+    n = sl.rewrite_body(doc, FakeClient([resp]), cfg)
+    assert n == 2
+    bodies = [b.text for b in doc.pages[0].blocks if b.type is BlockType.BODY]
+    assert bodies[0] == "本章では総論を述べる（整形済み）。"
+
+
+def test_check_anomalies_returns_report():
+    doc = _doc()
+    cfg = StructureLLMConfig(enabled=True, api_key="x", anomaly_check=True)
+    fake = FakeClient(["- p1末とp2頭で文が繋がっていません"])
+    report = sl.check_anomalies(doc, fake, cfg)
+    assert "繋がっていません" in report
+    # 境界コンテキストがプロンプトに入っている
+    assert "‖" in fake.prompts[0]
+
+
+class FakeVisionClient(FakeClient):
+    def describe_image(self, image_bytes: bytes, prompt: str) -> str:
+        return "実験装置の写真"
+
+
+def test_describe_figures_sets_alt_text(tmp_path):
+    from PIL import Image
+
+    img = tmp_path / "page.png"
+    Image.new("RGB", (500, 700), "white").save(img)
+    page = Page(number=1, width=500, height=700, image_path=str(img))
+    page.blocks = [Block(id="f1", bbox=BBox(x0=50, y0=50, x1=450, y1=400),
+                         type=BlockType.FIGURE, reading_order=1)]
+    doc = Document(meta=DocMeta(title="t"), pages=[page])
+    cfg = StructureLLMConfig(enabled=True, api_key="x", figure_alt_text=True)
+    n = sl.describe_figures(doc, FakeVisionClient([]), cfg)
+    assert n == 1
+    assert doc.pages[0].blocks[0].text == "実験装置の写真"
+
+
+def test_describe_figures_noop_without_vision():
+    page = Page(number=1, width=500, height=700)
+    page.blocks = [Block(id="f1", bbox=BBox(x0=0, y0=0, x1=10, y1=10),
+                         type=BlockType.FIGURE, reading_order=1)]
+    doc = Document(pages=[page])
+    cfg = StructureLLMConfig(enabled=True, api_key="x", figure_alt_text=True)
+    # generate だけのクライアント（describe_image 無し）→ 何もしない
+    assert sl.describe_figures(doc, FakeClient([]), cfg) == 0

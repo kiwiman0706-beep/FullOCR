@@ -157,9 +157,29 @@
         <div class="desc">同じ本を再度ドロップしても、既に出力があれば再変換しません。</div></div>
     </div>
     <div class="opt-row">
+      <input type="checkbox" id="opt-cleanup" checked />
+      <div><label for="opt-cleanup">本文の改行・ページ境界を自動整形する（無料）</label>
+        <div class="desc">ページ境界でぶつ切りになった段落の連結や、ノンブル残骸の除去をルールで行います（AI不要）。</div></div>
+    </div>
+    <div class="opt-row">
       <input type="checkbox" id="opt-llm" />
       <div style="flex:1;"><label for="opt-llm">AIで見出し構造を整える（Gemini・要APIキー）</label>
         <div class="desc">見出しの階層(H1〜H6)をAIが本の目次に沿って付け直し、アウトライン表示を本のとおりのツリーにします。構成の評価(_structure_review.md)も出力します。</div>
+        <div class="opt-row" style="padding-left:6px;">
+          <input type="checkbox" id="opt-llm-anomaly" />
+          <div><label for="opt-llm-anomaly">本文の異常チェック（変な改行・ページ飛びを検出）</label>
+            <div class="desc">レポートに追記。安価（境界のみ点検）。</div></div>
+        </div>
+        <div class="opt-row" style="padding-left:6px;">
+          <input type="checkbox" id="opt-llm-rewrite" />
+          <div><label for="opt-llm-rewrite">本文をAIでリライト整形する（構造・画像は保持）</label>
+            <div class="desc">OCR由来の改行・誤字を段落ごとに整えます。出力トークンを使うぶん割高（数十円/冊）。</div></div>
+        </div>
+        <div class="opt-row" style="padding-left:6px;">
+          <input type="checkbox" id="opt-llm-alt" />
+          <div><label for="opt-llm-alt">挿絵の説明文（代替テキスト）を生成する</label>
+            <div class="desc">図をAIが説明し、画像の下に添えます（スマホでの検索に有効）。画像トークンを消費。</div></div>
+        </div>
         <input type="password" class="field" id="llmKey" placeholder="Gemini APIキー（環境変数 GEMINI_API_KEY があれば空欄でOK）" />
         <div class="remember-row">
           <input type="checkbox" id="opt-remember" />
@@ -338,7 +358,11 @@ startBtn.addEventListener('click', async () => {
   form.append('split_chapters', $('opt-split').checked);
   form.append('skip_existing', $('opt-skip').checked);
   form.append('out_dir', outDirEl.value || '');
+  form.append('text_cleanup', $('opt-cleanup').checked);
   form.append('llm_structure', optLlm.checked);
+  form.append('llm_anomaly', $('opt-llm-anomaly').checked);
+  form.append('llm_rewrite', $('opt-llm-rewrite').checked);
+  form.append('llm_figure_alt', $('opt-llm-alt').checked);
   form.append('llm_api_key', llmKeyEl.value || '');
 
   // 設定を記憶（任意）。remember=false なら保存済みを削除。
@@ -348,7 +372,9 @@ startBtn.addEventListener('click', async () => {
     opt: {
       'opt-headers': $('opt-headers').checked, 'opt-wiklinks': $('opt-wiklinks').checked,
       'opt-frontmatter': $('opt-frontmatter').checked, 'opt-split': $('opt-split').checked,
-      'opt-skip': $('opt-skip').checked, 'opt-llm': optLlm.checked,
+      'opt-skip': $('opt-skip').checked, 'opt-cleanup': $('opt-cleanup').checked,
+      'opt-llm': optLlm.checked, 'opt-llm-anomaly': $('opt-llm-anomaly').checked,
+      'opt-llm-rewrite': $('opt-llm-rewrite').checked, 'opt-llm-alt': $('opt-llm-alt').checked,
     },
   };
   fetch('/api/settings', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(settings) });

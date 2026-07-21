@@ -50,7 +50,11 @@ def _block_to_md(b: Block, cfg: RenderConfig) -> str | None:
         return f"{'#' * level} {t}"
     if b.type is BlockType.FIGURE:
         if b.image_path:
-            return _image_link(b.image_path, cfg, alt="figure")
+            link = _image_link(b.image_path, cfg, alt=t or "figure")
+            # 代替テキスト(LLM生成)があれば、画像の下に説明を添える。Obsidian の
+            # wikilink 埋め込みは alt を表示・検索できないため、本文として出して
+            # スマホでの全文検索に引っかかるようにする。
+            return f"{link}\n*{t}*" if t else link
         # 画像未切り出し時はプレースホルダ（ページ画像がまだ無いケース）
         return f"> [!note] 図領域 (p.{b.id})  bbox=({int(b.bbox.x0)},{int(b.bbox.y0)})-({int(b.bbox.x1)},{int(b.bbox.y1)})"
     if b.type is BlockType.CAPTION:

@@ -110,6 +110,11 @@ structure engine (layout only)  ────┘      (build_document)
   real documents put the label column and the text column in different reading-order clusters
   (`_merge_label_pairs`). If the structure engine produced nothing, falls back to NDL-only (one
   block per line, position-ordered).
+- `pipeline/textclean.py` — **rule-based (free, deterministic) body cleanup**, runs after merge
+  when `PipelineConfig.text_cleanup` (default on). Joins consecutive `BODY` blocks whose previous
+  block doesn't end on sentence-final punctuation — *across page boundaries* (Markdown has no page
+  concept, but OCR splits paragraphs at page breaks), drops nonbre/柱 noise (digit/symbol-only short
+  fragments), normalizes whitespace. Headings/figures/captions break the join so structure is kept.
 - `pipeline/structure_llm.py` + `llm/` — **optional LLM structure pass** (runs in
   `batch.build_ir_for_pdf` after merge, before render; off unless `StructureLLMConfig.enabled`
   AND an API key is present, else a silent no-op). This is the *chosen* fix for the flat-heading
@@ -123,7 +128,15 @@ structure engine (layout only)  ────┘      (build_document)
   via `StructureLLMConfig.provider` / GUI. The real LLM call runs on the user's machine; all the
   parse/apply/report logic is unit-tested with a fake client (`tests/test_structure_llm.py`). The
   review string is persisted on `DocMeta.structure_review` so `_write_structure_review` can emit it
-  after `render_document` (which clears `*.md` first).
+  after `render_document` (which clears `*.md` first). Beyond hierarchy+review, the same pass has
+  three more opt-in (token-costing) features, each its own `StructureLLMConfig` flag: `anomaly_check`
+  (report weird line breaks / page skips — cheap "page-boundary contexts" by default, `anomaly_full_text`
+  for the whole book), `rewrite_text` (LLM tidies each `BODY` paragraph's OCR line breaks/typos without
+  touching headings/figures/tables, so structure+images are preserved — output tokens make this the
+  pricey one), and `figure_alt_text` (multimodal: crops each `FIGURE` from the page image, asks the
+  model for an alt/description stored on the block and rendered as a searchable caption under the image).
+  The vision path uses an optional `describe_image(bytes, prompt)` method on the client (checked via
+  `hasattr`), implemented by `GeminiClient`.
 - `render/markdown.py` + `render/toc.py` — walks the IR to produce `00_index.md` (front-matter +
   TOC) plus, if `RenderConfig.split_by_heading_level` is set, one Markdown file per chapter; crops
   figure regions out of rendered page images (needs `Pillow` + a `Page.image_path`, scaled by

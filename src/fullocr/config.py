@@ -102,6 +102,15 @@ class StructureLLMConfig(BaseModel):
     reference_head_chars: int = 8000
     # 各見出し直後の本文スニペットの長さ（見出しか否かの判断材料）。
     snippet_chars: int = 60
+    # --- LLM 後処理（いずれもトークンを消費。既定オフ） ---
+    # 本文の異常検出レポート（変な改行・ページ飛び等）を _structure_review.md に追記。
+    anomaly_check: bool = False
+    # 異常検出で全文を送る（False: ページ境界の前後だけ＝安い / True: 全文＝高精度）。
+    anomaly_full_text: bool = False
+    # 本文の改行・OCRゆれを LLM で整える（構造・画像は保持。段落ブロック単位で書き換え）。
+    rewrite_text: bool = False
+    # 挿絵の代替テキスト(alt)をマルチモーダルで生成（検索性向上。画像トークン消費）。
+    figure_alt_text: bool = False
 
 
 class RenderConfig(BaseModel):
@@ -131,6 +140,9 @@ class PipelineConfig(BaseModel):
     marker: MarkerConfig = Field(default_factory=MarkerConfig)
     structure_llm: StructureLLMConfig = Field(default_factory=StructureLLMConfig)
     render: RenderConfig = Field(default_factory=RenderConfig)
+
+    # ルールベースの本文整形（ページ境界の改行連結・ノンブル残骸除去など）。無料・既定ON。
+    text_cleanup: bool = True
 
     # 作業ディレクトリ（中間生成物）。
     work_dir: Path = Path("work")

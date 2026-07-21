@@ -93,7 +93,11 @@ async def convert(
     split_chapters: bool = Form(False),
     skip_existing: bool = Form(True),
     out_dir: str = Form(""),
+    text_cleanup: bool = Form(True),
     llm_structure: bool = Form(False),
+    llm_anomaly: bool = Form(False),
+    llm_rewrite: bool = Form(False),
+    llm_figure_alt: bool = Form(False),
     llm_api_key: str = Form(""),
 ) -> dict:
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -101,6 +105,7 @@ async def convert(
     cfg = _base_config()
     if out_dir.strip():
         cfg.out_dir = Path(out_dir.strip())
+    cfg.text_cleanup = text_cleanup
     cfg.render = RenderConfig(
         drop_headers_footers=drop_headers_footers,
         obsidian_wiklinks=obsidian_wiklinks,
@@ -109,6 +114,9 @@ async def convert(
     )
     if llm_structure:
         cfg.structure_llm.enabled = True
+        cfg.structure_llm.anomaly_check = llm_anomaly
+        cfg.structure_llm.rewrite_text = llm_rewrite
+        cfg.structure_llm.figure_alt_text = llm_figure_alt
         if llm_api_key.strip():
             cfg.structure_llm.api_key = llm_api_key.strip()
 

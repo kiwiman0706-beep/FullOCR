@@ -16,8 +16,10 @@ LLM 依存部は llm.LLMClient(generate) だけ。プロバイダは差し替え
 
 from __future__ import annotations
 
+import io
 import json
 import re
+from pathlib import Path
 
 from ..config import StructureLLMConfig
 from ..ir import Block, BlockType, Document
@@ -253,11 +255,167 @@ def review_structure(doc: Document, client: LLMClient, cfg: StructureLLMConfig) 
         return None
 
 
+# --- 本文の異常検出（変な改行・ページ飛び等） -----------------------------
+
+def _page_texts(doc: Document) -> list[tuple[int, str]]:
+    out: list[tuple[int, str]] = []
+    for page in doc.pages:
+        t = "".join(
+            b.text for b in page.ordered_blocks()
+            if b.type in (BlockType.BODY, BlockType.HEADING) and b.text.strip()
+        )
+        out.append((page.number, t))
+    return out
+
+
+def _boundary_contexts(doc: Document, n: int = 80) -> str:
+    """ページ境界の前後だけを抜き出す（全文より遥かに安いのに、ページ飛び検出に有効）。"""
+    pts = _page_texts(doc)
+    lines: list[str] = []
+    for i in range(len(pts) - 1):
+        (pa, ta), (pb, tb) = pts[i], pts[i + 1]
+        lines.append(f"[p{pa}末] …{ta[-n:]}  ‖  [p{pb}頭] {tb[:n]}…")
+    return "\n".join(lines)
+
+
+def _full_text(doc: Document) -> str:
+    return "\n".join(f"[p{no}] {t}" for no, t in _page_texts(doc))
+
+
+def check_anomalies(doc: Document, client: LLMClient, cfg: StructureLLMConfig) -> str | None:
+    """本文の異常（不自然な改行、ページ飛び、脱落など）を検出したレポートを返す。"""
+    if cfg.anomaly_full_text:
+        payload = _full_text(doc)
+        scope = "本文全体（[pN] はページ番号）"
+    else:
+        payload = _boundary_contexts(doc)
+        scope = "各ページ境界の前後（‖ の左が前ページ末、右が次ページ頭）"
+    prompt = "\n".join([
+        f"書名: {doc.meta.title or '（無題）'}",
+        "",
+        f"# 点検対象（{scope}）",
+        payload or "（本文なし）",
+        "",
+        "# 依頼",
+        "日本語で簡潔に、次の異常だけを箇条書きで指摘してください（無ければ「異常なし」）:",
+        "- 文の途中で不自然に切れている／ページ境界で文がつながっていない箇所",
+        "- 内容が飛んでいる（ページや段落が抜け落ちていそう）箇所",
+        "- 重複・明らかな誤認識の混入",
+        "指摘には該当ページ番号を添えてください。修正文の全文出力は不要です。",
+    ])
+    try:
+        return client.generate(prompt, system=_SYSTEM) or None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+# --- 本文リライト（構造・画像は保持し、段落テキストだけ整える） --------------
+
+def _body_blocks(doc: Document) -> list[Block]:
+    return [b for page in doc.pages for b in page.ordered_blocks()
+            if b.type is BlockType.BODY and b.text.strip()]
+
+
+def rewrite_body(doc: Document, client: LLMClient, cfg: StructureLLMConfig, batch: int = 40) -> int:
+    """本文段落の不自然な改行・空白・明らかな誤字を LLM で整える（意味は変えない）。
+
+    見出し・図・表・キャプションは対象外（構造と画像配置を保持）。段落ブロック単位で
+    番号付けして送り、JSON で返させて突き合わせる。戻り値: 書き換えた段落数。
+    """
+    blocks = _body_blocks(doc)
+    changed = 0
+    for start in range(0, len(blocks), batch):
+        chunk = blocks[start : start + batch]
+        listing = "\n".join(f"[{i}] {b.text}" for i, b in enumerate(chunk))
+        prompt = "\n".join([
+            "次の各段落は、自炊本OCRの本文です。OCR由来の不自然な改行・余分な空白・"
+            "明らかな誤認識だけを整え、意味・語彙・数値は一切変えないでください。",
+            "内容の要約・追記・削除はしないこと。",
+            "",
+            listing,
+            "",
+            '出力は次の JSON のみ: {"items":[{"i":0,"text":"整えた段落"}, ...]}',
+        ])
+        try:
+            resp = client.generate(prompt, system=_SYSTEM)
+        except Exception:  # noqa: BLE001
+            continue
+        obj = _extract_json(resp)
+        if not obj or not isinstance(obj.get("items"), list):
+            continue
+        for item in obj["items"]:
+            if not isinstance(item, dict):
+                continue
+            try:
+                i = int(item["i"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            text = item.get("text")
+            if 0 <= i < len(chunk) and isinstance(text, str) and text.strip():
+                chunk[i].text = text.strip()
+                changed += 1
+    return changed
+
+
+# --- 挿絵の代替テキスト生成（マルチモーダル） -------------------------------
+
+_ALT_PROMPT = (
+    "これは書籍中の挿絵・図です。内容が検索や理解に役立つよう、日本語で1〜2文の"
+    "簡潔な説明（代替テキスト）を書いてください。前置き・引用符は不要、説明文のみ。"
+)
+
+
+def _figure_crop_png(page, block: Block) -> bytes | None:
+    """ページ画像から図領域を切り出して PNG バイト列にする。"""
+    if not page.image_path or not Path(page.image_path).exists():
+        return None
+    try:
+        from PIL import Image
+    except ImportError:
+        return None
+    with Image.open(page.image_path) as im:
+        sx = im.width / page.width if page.width else 1.0
+        sy = im.height / page.height if page.height else 1.0
+        box = (
+            max(0, int(block.bbox.x0 * sx)),
+            max(0, int(block.bbox.y0 * sy)),
+            min(im.width, int(block.bbox.x1 * sx)),
+            min(im.height, int(block.bbox.y1 * sy)),
+        )
+        if box[2] <= box[0] or box[3] <= box[1]:
+            return None
+        buf = io.BytesIO()
+        im.crop(box).convert("RGB").save(buf, format="PNG")
+        return buf.getvalue()
+
+
+def describe_figures(doc: Document, client: LLMClient, cfg: StructureLLMConfig) -> int:
+    """挿絵ブロックに代替テキストを付与（block.text に格納）。戻り値: 付与数。"""
+    if not hasattr(client, "describe_image"):
+        return 0
+    count = 0
+    for page in doc.pages:
+        for b in page.blocks:
+            if b.type is not BlockType.FIGURE or b.text.strip():
+                continue
+            data = _figure_crop_png(page, b)
+            if not data:
+                continue
+            try:
+                alt = client.describe_image(data, _ALT_PROMPT)  # type: ignore[attr-defined]
+            except Exception:  # noqa: BLE001
+                continue
+            if alt:
+                b.text = alt.strip()
+                count += 1
+    return count
+
+
 def run_structure_llm(doc: Document, cfg: StructureLLMConfig) -> str | None:
-    """構造化パスの入口。doc を(必要なら)その場で更新し、評価レポート文字列を返す。
+    """構造化パスの入口。doc を(必要なら)その場で更新し、レビュー文字列を返す。
 
     - cfg.enabled が False、または API キーが無ければ何もしない（None）。
-    - assign_hierarchy / review はそれぞれのフラグで実行。
+    - 各処理はフラグで個別に実行。レビューと異常検出は _structure_review.md 用に結合。
     """
     if not cfg.enabled:
         return None
@@ -266,6 +424,18 @@ def run_structure_llm(doc: Document, cfg: StructureLLMConfig) -> str | None:
         return None
     if cfg.assign_hierarchy:
         assign_hierarchy(doc, client, cfg)
+    if cfg.rewrite_text:
+        rewrite_body(doc, client, cfg)
+    if cfg.figure_alt_text:
+        describe_figures(doc, client, cfg)
+
+    sections: list[str] = []
     if cfg.review:
-        return review_structure(doc, client, cfg)
-    return None
+        r = review_structure(doc, client, cfg)
+        if r:
+            sections.append("## 構成レビュー\n\n" + r)
+    if cfg.anomaly_check:
+        a = check_anomalies(doc, client, cfg)
+        if a:
+            sections.append("## 本文の異常チェック\n\n" + a)
+    return "\n\n".join(sections) if sections else None

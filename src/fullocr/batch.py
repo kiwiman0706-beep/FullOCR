@@ -25,6 +25,7 @@ from .pipeline import merge as merge_mod
 from .pipeline import mineru as mineru_mod
 from .pipeline import ndl as ndl_mod
 from .pipeline import structure_llm as structure_mod
+from .pipeline import textclean as textclean_mod
 from .pipeline.layout import LayoutPage
 from .render import render_document
 
@@ -108,7 +109,11 @@ def build_ir_for_pdf(
         if i < len(page_imgs):
             page.image_path = str(page_imgs[i])
 
-    # LLM 構造化パス（任意）: 見出し階層の付与＋構成評価。API キーが無ければ no-op。
+    # ルールベース本文整形（無料・既定ON。ページ境界の改行連結・ノンブル除去）。
+    if cfg.text_cleanup:
+        textclean_mod.clean_document(doc)
+
+    # LLM 構造化パス（任意）: 見出し階層＋異常検出＋本文リライト＋図alt。キー無しは no-op。
     review = structure_mod.run_structure_llm(doc, cfg.structure_llm)
     if review:
         doc.meta.structure_review = review
