@@ -34,6 +34,16 @@ jobs:
         working-directory: fullocr
         run: .venv\Scripts\pyinstaller.exe packaging\fullocr-gui.spec
 
+      # Guard: docling-parse dies at runtime if its glyph resources are missing.
+      # Fail the build here rather than shipping an installer that can't convert.
+      - name: Verify docling_parse resources are bundled
+        working-directory: fullocr
+        shell: pwsh
+        run: |
+          $p = "dist\fullocr-gui\_internal\docling_parse\pdf_resources\glyphs\standard\additional.dat"
+          if (!(Test-Path $p)) { Write-Error "Missing $p - docling_parse resources not bundled"; exit 1 }
+          Write-Host "OK: docling_parse resources present ($p)"
+
       # --- NDLOCR-Lite: separate license/deps, built as its own companion exe ---
       - name: Clone NDLOCR-Lite
         run: git clone --depth 1 https://github.com/ndl-lab/ndlocr-lite.git ndlocr-lite-src
