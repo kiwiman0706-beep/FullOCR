@@ -88,8 +88,18 @@
   .status-processing{background:var(--accent-soft); color:var(--accent);}
   .status-done{background:#e2ede7; color:var(--good);}
   .status-skipped{background:#eee; color:var(--ink-soft);}
-  .status-error{background:#f6dcdc; color:var(--bad);}
+  .status-error{background:#f6dcdc; color:var(--bad); cursor:pointer;}
+  .status-error::after{content:" ▸"; font-size:10px;}
+  .status-error.open::after{content:" ▾";}
   .status-canceled{background:#eee; color:var(--ink-soft);}
+  .err-detail td{background:#fbf1f1; border-top:none;}
+  .err-detail .err-msg{color:var(--bad); font-weight:600; font-size:12px; margin-bottom:6px;}
+  .err-detail pre{
+    margin:0; padding:10px; background:#2b2622; color:#f0e9df; border-radius:6px;
+    font-size:11px; line-height:1.45; overflow-x:auto; white-space:pre; max-height:320px;
+  }
+  .err-detail .err-log{font-size:11px; color:var(--ink-soft); margin-top:6px; word-break:break-all;}
+  .err-detail .err-log .open-link{color:var(--accent);}
   .outpath{font-size:11px; color:var(--ink-soft); word-break:break-all;}
   .open-link{color:var(--accent); cursor:pointer; text-decoration:underline;}
   .rowbtns{display:flex; gap:4px;}
@@ -296,7 +306,10 @@ function renderJobs(jobs){
 
     const tdName = document.createElement('td'); tdName.textContent = j.filename;
     const tdStat = document.createElement('td');
-    tdStat.innerHTML = `<span class="status-pill ${info.cls}">${info.label}</span>`;
+    const pill = document.createElement('span');
+    pill.className = `status-pill ${info.cls}`;
+    pill.textContent = info.label;
+    tdStat.appendChild(pill);
     const tdPath = document.createElement('td'); tdPath.className = 'outpath';
     if (j.status === 'done' || j.status === 'skipped') {
       const link = document.createElement('span');
@@ -319,6 +332,36 @@ function renderJobs(jobs){
     }
     tr.append(tdName, tdStat, tdPath, tdOps);
     jobsBody.appendChild(tr);
+
+    // エラー行はピルをクリックで詳細（メッセージ＋トレースバック＋ログの場所）を開閉。
+    if (j.status && j.status.startsWith('error')) {
+      const detail = document.createElement('tr');
+      detail.className = 'err-detail';
+      detail.style.display = 'none';
+      const cell = document.createElement('td'); cell.colSpan = 4;
+      const parts = [];
+      if (j.error) parts.push(`<div class="err-msg">${esc(j.error)}</div>`);
+      if (j.traceback) parts.push(`<pre>${esc(j.traceback)}</pre>`);
+      cell.innerHTML = parts.join('');
+      if (j.log_path) {
+        const logDiv = document.createElement('div'); logDiv.className = 'err-log';
+        logDiv.append(document.createTextNode('ログ: '));
+        const logLink = document.createElement('span');
+        logLink.className = 'open-link'; logLink.textContent = j.log_path;
+        logLink.title = 'ログのあるフォルダを開く';
+        logLink.addEventListener('click', () => openFolder(j.log_path));
+        logDiv.appendChild(logLink);
+        cell.appendChild(logDiv);
+      }
+      detail.appendChild(cell);
+      jobsBody.appendChild(detail);
+      pill.title = 'クリックでエラーの詳細を表示';
+      pill.addEventListener('click', () => {
+        const open = detail.style.display === 'none';
+        detail.style.display = open ? '' : 'none';
+        pill.classList.toggle('open', open);
+      });
+    }
   }
 }
 

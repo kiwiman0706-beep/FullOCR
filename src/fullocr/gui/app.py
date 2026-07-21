@@ -38,16 +38,24 @@ class Api:
         return result[0] if isinstance(result, (list, tuple)) else result
 
     def open_path(self, path: str) -> bool:
-        """指定フォルダをOSのファイルマネージャで開く。"""
-        if not path or not os.path.isdir(path):
+        """指定パスをOSのファイルマネージャで開く。
+
+        フォルダならそのまま開く。ファイル（ログ等）なら、可能なら選択状態にして
+        親フォルダを開く（Win: explorer /select、mac: open -R、Linux: 親を開く）。
+        """
+        if not path or not os.path.exists(path):
             return False
+        is_dir = os.path.isdir(path)
         try:
             if sys.platform.startswith("win"):
-                os.startfile(path)  # type: ignore[attr-defined]  # noqa: S606
+                if is_dir:
+                    os.startfile(path)  # type: ignore[attr-defined]  # noqa: S606
+                else:
+                    subprocess.run(["explorer", "/select,", path], check=False)  # noqa: S607
             elif sys.platform == "darwin":
-                subprocess.run(["open", path], check=False)
+                subprocess.run(["open"] + ([] if is_dir else ["-R"]) + [path], check=False)
             else:
-                subprocess.run(["xdg-open", path], check=False)
+                subprocess.run(["xdg-open", path if is_dir else os.path.dirname(path)], check=False)
             return True
         except OSError:
             return False

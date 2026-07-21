@@ -95,6 +95,21 @@ def test_runner_error_marked():
     assert job["status"] == "error"
 
 
+def test_runner_error_captures_message_and_traceback():
+    def boom(job):
+        raise ValueError("NDLが見つかりません")
+
+    m = JobManager(boom)
+    m.enqueue("a.pdf", "a", "o")
+    _wait_idle(m)
+    job = m.list_jobs()[0]
+    # サマリは "型名: メッセージ"、詳細は全トレースバック（GUIでクリック表示する）
+    assert job["error"] == "ValueError: NDLが見つかりません"
+    assert "Traceback" in job["traceback"]
+    assert "ValueError" in job["traceback"]
+    assert "log_path" in job  # 既定は空文字（server 側でのみ埋まる）
+
+
 def test_list_jobs_order_finished_then_pending():
     m = JobManager(lambda job: None)
     m.pause()

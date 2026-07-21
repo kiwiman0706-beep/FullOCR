@@ -17,6 +17,7 @@ CPU を使い切るため）。処理の粒度は"ファイル単位"で、実�
 from __future__ import annotations
 
 import threading
+import traceback
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -30,7 +31,8 @@ class Job:
     path: str
     output_dir: str
     status: str = "queued"  # queued / processing / done / skipped / error / canceled
-    error: str = ""
+    error: str = ""          # 例外の1行メッセージ（表示のサマリ）
+    traceback: str = ""      # 例外の全トレースバック（クリックで開く詳細）
     # 1冊分の設定・フラグ（server が詰める。テストでは任意）。
     meta: dict[str, Any] = field(default_factory=dict)
 
@@ -41,6 +43,8 @@ class Job:
             "status": self.status,
             "output_dir": self.output_dir,
             "error": self.error,
+            "traceback": self.traceback,
+            "log_path": self.meta.get("log_path", ""),
             "pending": self.status == "queued",
         }
 
@@ -161,7 +165,8 @@ class JobManager:
                     job.status = "done"
             except Exception as e:  # noqa: BLE001 - 1冊失敗で全体を止めない
                 job.status = "error"
-                job.error = str(e)
+                job.error = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
+                job.traceback = traceback.format_exc()
             finally:
                 with self._cv:
                     self._current = None

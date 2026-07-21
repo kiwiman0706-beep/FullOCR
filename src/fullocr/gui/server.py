@@ -13,7 +13,9 @@ from __future__ import annotations
 import json
 import re
 import sys
+import traceback
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request, UploadFile
@@ -76,15 +78,46 @@ def _base_config() -> PipelineConfig:
     return cfg
 
 
+def _log_failure(pdf_path: Path, err: BaseException) -> Path | None:
+    """失敗した1冊のトレースバックを base_dir/logs/ にファイル保存し、その場所を返す。
+
+    GUI を閉じていても後から原因を追えるよう、ディスクにも残す。書き込み自体に
+    失敗しても本処理のエラーを覆い隠さないよう、握りつぶして None を返す。
+    """
+    try:
+        log_dir = _base_dir() / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        log_path = log_dir / f"{pdf_path.stem}_{stamp}.log"
+        log_path.write_text(
+            f"file: {pdf_path}\ntime: {stamp}\n\n"
+            + "".join(traceback.format_exception(type(err), err, err.__traceback__)),
+            encoding="utf-8",
+        )
+        return log_path
+    except OSError:
+        return None
+
+
 def _run_one(job: Job) -> None:
-    """1冊を処理。skip_existing で既存出力があればスキップ。"""
+    """1冊を処理。skip_existing で既存出力があればスキップ。
+
+    失敗時はトレースバックをログファイルに残し、その場所を error メッセージへ
+    添えたうえで再送出する（JobManager が status=error と全文を記録する）。
+    """
     cfg: PipelineConfig = job.meta["cfg"]
     pdf_path = Path(job.path)
     out_book = cfg.out_dir / pdf_path.stem
     if job.meta.get("skip_existing", True) and (out_book / "00_index.md").exists():
         job.status = "skipped"
         return
-    process_pdf(pdf_path, cfg)
+    try:
+        process_pdf(pdf_path, cfg)
+    except Exception as e:
+        log_path = _log_failure(pdf_path, e)
+        if log_path is not None:
+            job.meta["log_path"] = str(log_path)
+        raise
 
 
 manager = JobManager(_run_one)
