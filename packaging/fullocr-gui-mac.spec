@@ -12,7 +12,7 @@
 
 import os
 
-from PyInstaller.utils.hooks import collect_all
+from PyInstaller.utils.hooks import collect_all, collect_data_files
 
 ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))  # noqa: F821 (SPECPATH injected by PyInstaller)
 SRC = os.path.join(ROOT, "src")
@@ -36,6 +36,13 @@ for pkg in (
     datas += d
     binaries += b
     hiddenimports += h
+
+# docling-parse は実行時に自パッケージ内 pdf_resources/（グリフ表 *.dat 等）を読む。
+# collect_all がこのツリーの一部を取りこぼし、凍結後に
+#   "docling-parse could not load document ...: filename does not exists:
+#    .../docling_parse/pdf_resources/glyphs/standard/additional.dat"
+# で失敗するため、パッケージ内リソースを丸ごと明示収集して漏れを潰す。
+datas += collect_data_files("docling_parse", includes=["**/*"])
 
 # 任意依存: google-genai(.[llm])。入っていれば同梱。
 for pkg in ("google.genai",):

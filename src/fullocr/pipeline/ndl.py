@@ -217,5 +217,13 @@ def run_ndl(input_pdf: str | Path, outdir: str | Path, cfg: NDLConfig) -> Path:
     # 自炊本のファイル名は空白・記号を含みがち（実データで確認済み）。shell=True の
     # コマンド文字列に埋め込む前に quote してトークン分割崩れを防ぐ。
     cmd = cfg.command.format(input=quote_path(str(input_pdf)), outdir=quote_path(str(outdir)))
-    subprocess.run(cmd, shell=True, check=True)
+    # 出力を握り、失敗時は末尾を例外に載せる。GUI(コンソール無し)ではプロセスの
+    # stderr がどこにも出ないため、これをしないと NDL 失敗理由がログに残らない。
+    proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    if proc.returncode != 0:
+        tail = ((proc.stderr or "") + (proc.stdout or "")).strip()[-2000:]
+        raise RuntimeError(
+            f"NDLOCR-Lite failed (exit {proc.returncode}) for {input_pdf}.\n"
+            f"command: {cmd}\n--- output (tail) ---\n{tail}"
+        )
     return outdir

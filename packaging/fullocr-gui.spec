@@ -14,7 +14,7 @@
 
 import os
 
-from PyInstaller.utils.hooks import collect_all
+from PyInstaller.utils.hooks import collect_all, collect_data_files
 
 # PyInstaller resolves relative paths in a .spec file relative to the spec
 # file's own directory (SPECPATH), not the CWD `pyinstaller` was invoked
@@ -46,6 +46,14 @@ for pkg in (
     datas += d
     binaries += b
     hiddenimports += h
+
+# docling-parse は実行時に、自パッケージ内の pdf_resources/（グリフ表 *.dat 等）を
+# 読み込む。collect_all はこのツリーの一部（例: glyphs/standard/additional.dat）を
+# 取りこぼすことがあり、凍結後に docling-parse が
+#   "could not load document ...: filename does not exists:
+#    .../docling_parse/pdf_resources/glyphs/standard/additional.dat"
+# で変換に失敗する。パッケージ内のリソースを丸ごと（includes=**/*）明示収集して漏れを潰す。
+datas += collect_data_files("docling_parse", includes=["**/*"])
 
 # 任意依存（extra）: 入っていればバンドル、無ければ黙ってスキップ。
 # google-genai(.[llm]) は LLM 構造化パス用。名前空間パッケージ google.genai。
