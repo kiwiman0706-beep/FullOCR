@@ -28,14 +28,28 @@ app = FastAPI(title="FullOCR")
 STATIC_DIR = Path(__file__).parent / "static"
 
 
-def _base_dir() -> Path:
-    """出力・作業フォルダの基準ディレクトリ。
+def _frozen_dir() -> Path:
+    """凍結時の実行ファイルの所在（同梱 companion の解決に使う）。
 
-    凍結exe(ダブルクリック起動)では起動時の作業ディレクトリが不定なので、
-    exe自身の場所を基準にして「必ず見つかる」場所に出力する。開発時は CWD。
+    macOS .app では `FullOCR.app/Contents/MacOS/<exe>`、Windows/Linux の onedir では
+    exe と同じフォルダ。いずれも `sys.executable` の親でよい。
+    """
+    return Path(sys.executable).parent
+
+
+def _base_dir() -> Path:
+    """出力・作業フォルダの基準ディレクトリ（ユーザーに見える場所）。
+
+    凍結時は起動時の作業ディレクトリが不定なので、実行ファイルの場所を基準にする。
+    macOS の .app は中身(Contents/MacOS)に書くとユーザーから見えないので、.app の
+    「隣」を基準にする。開発時は CWD。
     """
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent
+        exe = Path(sys.executable)
+        for parent in exe.parents:
+            if parent.suffix == ".app":
+                return parent.parent
+        return exe.parent
     return Path.cwd()
 
 
@@ -46,8 +60,9 @@ SETTINGS_PATH = _base_dir() / "fullocr_gui_settings.json"
 def _base_config() -> PipelineConfig:
     """ユーザーの fullocr.config.json（あれば）をベースに設定を組み立てる。
 
-    PyInstaller で固めた exe の中では、NDLOCR-Lite は別licenseの同梱companion exe
-    として `<このexeのフォルダ>/ndlocr-lite/ndlocr-lite.exe` に置かれる想定。
+    PyInstaller で固めたアプリの中では、NDLOCR-Lite は別licenseの同梱 companion
+    実行ファイルとして `<実行ファイルのフォルダ>/ndlocr-lite/` に置かれる想定
+    （Windows は ndlocr-lite.exe、macOS/Linux は ndlocr-lite）。
     """
     config_path = Path("fullocr.config.json")
     cfg = PipelineConfig.load(config_path) if config_path.exists() else PipelineConfig()
@@ -55,7 +70,8 @@ def _base_config() -> PipelineConfig:
     cfg.out_dir = base / "out"
     cfg.work_dir = base / "work"
     if getattr(sys, "frozen", False):
-        ndl_exe = Path(sys.executable).parent / "ndlocr-lite" / "ndlocr-lite.exe"
+        exe_name = "ndlocr-lite.exe" if sys.platform.startswith("win") else "ndlocr-lite"
+        ndl_exe = _frozen_dir() / "ndlocr-lite" / exe_name
         if ndl_exe.exists():
             cfg.ndl.command = f'"{ndl_exe}" --sourcepdf {{input}} --output {{outdir}}'
     return cfg
