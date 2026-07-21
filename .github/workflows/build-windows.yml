@@ -2,6 +2,11 @@ name: Build Windows exe
 
 on:
   workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Publish a GitHub Release with this tag (e.g. v0.1.0). Blank = just build the artifact."
+        required: false
+        default: ""
   push:
     tags:
       - "v*"
@@ -87,7 +92,10 @@ jobs:
         shell: pwsh
         run: |
           $ref = "${{ github.ref_name }}"
-          if ($ref -match '^v(\d+\.\d+\.\d+)') { $v = $Matches[1] } else { $v = "0.0.0" }
+          $inp = "${{ github.event.inputs.release_version }}"
+          if ($inp -match '^v?(\d+\.\d+\.\d+)') { $v = $Matches[1] }
+          elseif ($ref -match '^v(\d+\.\d+\.\d+)') { $v = $Matches[1] }
+          else { $v = "0.0.0" }
           echo "version=$v" >> $env:GITHUB_OUTPUT
 
       - name: Install Inno Setup
@@ -108,11 +116,14 @@ jobs:
           path: fullocr\installer\FullOCR-Setup.exe
           retention-days: 14
 
-      # タグ（v*）で走ったときだけ、GitHub の Releases にインストーラを公開する。
-      # 同じタグに対して macOS 側も同じ Release に .dmg を追記する（upsert）。
+      # Release への公開は2通り: タグ(v*) push、または workflow_dispatch で
+      # release_version を入れたとき。後者は runner の GITHUB_TOKEN でタグごと
+      # サーバ側に作られる（このサンドボックスからは tag push が塞がれているため）。
+      # 同じタグに macOS 側の .dmg も追記される（upsert）。
       - name: Publish installer to Release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.release_version != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.event.inputs.release_version || github.ref_name }}
           files: fullocr/installer/FullOCR-Setup.exe
           fail_on_unmatched_files: true

@@ -2,6 +2,11 @@ name: Build macOS app
 
 on:
   workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Publish a GitHub Release with this tag (e.g. v0.1.0). Blank = just build the artifact."
+        required: false
+        default: ""
   push:
     tags:
       - "v*"
@@ -91,11 +96,12 @@ jobs:
           path: FullOCR.dmg
           retention-days: 14
 
-      # タグ（v*）で走ったときだけ、GitHub の Releases に .dmg を公開する。
-      # Windows 側と同じタグの同じ Release に追記される（upsert）。
+      # Release への公開は タグ(v*) push、または workflow_dispatch で release_version
+      # を入れたとき。Windows 側と同じタグの同じ Release に追記される（upsert）。
       - name: Publish .dmg to Release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || github.event.inputs.release_version != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.event.inputs.release_version || github.ref_name }}
           files: FullOCR.dmg
           fail_on_unmatched_files: true
