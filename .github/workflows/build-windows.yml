@@ -6,6 +6,10 @@ on:
     tags:
       - "v*"
 
+# タグ push 時に Release を作成/更新してインストーラを添付するため書込権限が要る。
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -103,3 +107,12 @@ jobs:
           name: FullOCR-Setup-windows
           path: fullocr\installer\FullOCR-Setup.exe
           retention-days: 14
+
+      # タグ（v*）で走ったときだけ、GitHub の Releases にインストーラを公開する。
+      # 同じタグに対して macOS 側も同じ Release に .dmg を追記する（upsert）。
+      - name: Publish installer to Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: fullocr/installer/FullOCR-Setup.exe
+          fail_on_unmatched_files: true
