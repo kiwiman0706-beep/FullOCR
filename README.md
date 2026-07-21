@@ -144,9 +144,14 @@ attachments/       切り出した挿絵
 - [ ] **フェーズ1.5**：実 NDL-Lite・構造エンジンとの結線（JSONキー確定、透明PDF→ページ描画→図切り出し、実本1章で3エンジンA/B）
 - [ ] **フェーズ2**：Obsidian最適化強化（front-matter・章分割・脚注/表・ノンブル除去の精緻化）
 - [ ] **フェーズ3**：ローカル Web GUI（ページ画像にボックス重畳、読み順の並べ替え・種別変更・誤字修正 → IR保存 → 再生成）
-- [ ] **フェーズ4**：**Windows exe 化・一括セットアップ**
+- [ ] **フェーズ4**：**Windows / Mac 化・一括セットアップ**
       - NDLOCR-Lite / 構造エンジン（モデル込み）を同梱し、初回起動でセットアップ完結
       - PyInstaller で単一配布物化、GUI から入力フォルダを選ぶだけで変換
+      - 配布はワンクリックの**インストーラ**：Windows は Inno Setup 製 `FullOCR-Setup.exe`
+        （同一 AppId なので新版を入れると**上書きで更新**）、Mac は `FullOCR.dmg`
+        （Applications へドラッグ、上書きで更新）。GitHub Actions が両方ビルドする
+        （`.github/workflows/build-windows.yml` / `build-macos.yml`）。
+        出力（`out/` `work/`）は書込可能なユーザーのホーム配下 `~/FullOCR` に置く。
 
 ### 最終形のアーキテクチャ方針
 - GUI は `pywebview`（＋FastAPI）でネイティブっぽいローカルアプリにし、

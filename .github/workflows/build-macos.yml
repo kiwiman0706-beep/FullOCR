@@ -63,14 +63,26 @@ jobs:
           cp -R ndlocr-lite-src/dist/ndlocr-lite \
             "fullocr/dist/FullOCR.app/Contents/MacOS/ndlocr-lite"
 
-      - name: Zip distribution
+      # --- Package as a drag-to-Applications .dmg ---
+      # A staging folder holds FullOCR.app plus an /Applications symlink; the
+      # user drags the app onto it. Dropping a newer build over an existing
+      # /Applications/FullOCR.app overwrites in place (Finder asks to replace),
+      # so reinstalling upgrades. A .dmg still arrives zip-wrapped from GitHub's
+      # artifact download, but a .dmg inside a zip is the normal Mac shape
+      # (unzip once, mount, drag) — not the old zip-of-a-zip.
+      - name: Build .dmg
         run: |
-          cd fullocr/dist
-          ditto -c -k --keepParent FullOCR.app ../../fullocr-gui-macos.zip
+          mkdir -p dmg-staging
+          cp -R fullocr/dist/FullOCR.app dmg-staging/FullOCR.app
+          ln -s /Applications dmg-staging/Applications
+          hdiutil create -volname "FullOCR" \
+            -srcfolder dmg-staging \
+            -ov -format UDZO \
+            FullOCR.dmg
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fullocr-gui-macos
-          path: fullocr-gui-macos.zip
+          name: FullOCR-macos-dmg
+          path: FullOCR.dmg
           retention-days: 14

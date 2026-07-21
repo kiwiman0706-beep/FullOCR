@@ -57,20 +57,39 @@ jobs:
           --add-data "src\config;config"
           src\ocr.py
 
-      # --- Combine into one distributable folder ---
+      # --- Place the NDLOCR-Lite companion inside the app's onedir tree ---
+      # The installer packages fullocr\dist\fullocr-gui\* wholesale, so the
+      # companion just needs to sit next to fullocr-gui.exe (server._frozen_dir()
+      # resolves ndlocr-lite\ndlocr-lite.exe from there at runtime).
       - name: Assemble distribution
-        run: |
-          mkdir dist
-          xcopy /E /I fullocr\dist\fullocr-gui dist\fullocr-gui
-          xcopy /E /I ndlocr-lite-src\dist\ndlocr-lite dist\fullocr-gui\ndlocr-lite
+        run: xcopy /E /I ndlocr-lite-src\dist\ndlocr-lite fullocr\dist\fullocr-gui\ndlocr-lite
 
-      - name: Zip distribution
-        run: Compress-Archive -Path dist\fullocr-gui -DestinationPath fullocr-gui-windows.zip
+      # --- Wrap it in a single self-updating installer (FullOCR-Setup.exe) ---
+      # Same AppId across releases => reinstalling a newer setup upgrades in
+      # place. Uploading the .exe directly (no Compress-Archive) avoids the
+      # previous double-zip (self zip + GitHub's artifact zip).
+      - name: Derive version
+        id: ver
+        shell: pwsh
+        run: |
+          $ref = "${{ github.ref_name }}"
+          if ($ref -match '^v(\d+\.\d+\.\d+)') { $v = $Matches[1] } else { $v = "0.0.0" }
+          echo "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        working-directory: fullocr
+        run: >
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          /DMyAppVersion=${{ steps.ver.outputs.version }}
+          packaging\fullocr.iss
         shell: pwsh
 
-      - name: Upload artifact
+      - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: fullocr-gui-windows
-          path: fullocr-gui-windows.zip
+          name: FullOCR-Setup-windows
+          path: fullocr\installer\FullOCR-Setup.exe
           retention-days: 14

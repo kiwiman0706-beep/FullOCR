@@ -38,18 +38,17 @@ def _frozen_dir() -> Path:
 
 
 def _base_dir() -> Path:
-    """出力・作業フォルダの基準ディレクトリ（ユーザーに見える場所）。
+    """出力・作業フォルダの基準ディレクトリ（ユーザーに見える書込可能な場所）。
 
-    凍結時は起動時の作業ディレクトリが不定なので、実行ファイルの場所を基準にする。
-    macOS の .app は中身(Contents/MacOS)に書くとユーザーから見えないので、.app の
-    「隣」を基準にする。開発時は CWD。
+    インストーラで Program Files や /Applications に入れると、そこは書込不可
+    （または .app 内に隠れる）ので、凍結時はユーザーのホーム配下 `~/FullOCR` を
+    基準にする（out/ work/ gui_uploads/ 設定 をここに置く）。開発時は CWD。
+    保存先は GUI で個別に指定可能（Obsidian 保管庫など）。
     """
     if getattr(sys, "frozen", False):
-        exe = Path(sys.executable)
-        for parent in exe.parents:
-            if parent.suffix == ".app":
-                return parent.parent
-        return exe.parent
+        base = Path.home() / "FullOCR"
+        base.mkdir(parents=True, exist_ok=True)
+        return base
     return Path.cwd()
 
 
