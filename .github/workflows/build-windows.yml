@@ -39,6 +39,26 @@ jobs:
           uv pip install --python .venv\Scripts\python.exe -e ".[docling,pdf,gui,llm]"
           uv pip install --python .venv\Scripts\python.exe pyinstaller
 
+      # バージョン（タグ or release_version から）。GUI 画面表示とインストーラ名に使う。
+      - name: Derive version
+        id: ver
+        shell: pwsh
+        run: |
+          $ref = "${{ github.ref_name }}"
+          $inp = "${{ github.event.inputs.release_version }}"
+          if ($inp -match '^v?(\d+\.\d+\.\d+)') { $v = $Matches[1] }
+          elseif ($ref -match '^v(\d+\.\d+\.\d+)') { $v = $Matches[1] }
+          else { $v = "0.0.0" }
+          echo "version=$v" >> $env:GITHUB_OUTPUT
+
+      # GUI に表示するバージョンを __init__.py に焼き込む（凍結後もこの値が出る）。
+      - name: Stamp version into package
+        working-directory: fullocr
+        shell: pwsh
+        run: |
+          $f = "src\fullocr\__init__.py"
+          (Get-Content $f) -replace '__version__ = ".*"', '__version__ = "${{ steps.ver.outputs.version }}"' | Set-Content $f
+
       - name: Build fullocr-gui.exe
         working-directory: fullocr
         run: .venv\Scripts\pyinstaller.exe packaging\fullocr-gui.spec
@@ -87,17 +107,6 @@ jobs:
       # Same AppId across releases => reinstalling a newer setup upgrades in
       # place. Uploading the .exe directly (no Compress-Archive) avoids the
       # previous double-zip (self zip + GitHub's artifact zip).
-      - name: Derive version
-        id: ver
-        shell: pwsh
-        run: |
-          $ref = "${{ github.ref_name }}"
-          $inp = "${{ github.event.inputs.release_version }}"
-          if ($inp -match '^v?(\d+\.\d+\.\d+)') { $v = $Matches[1] }
-          elseif ($ref -match '^v(\d+\.\d+\.\d+)') { $v = $Matches[1] }
-          else { $v = "0.0.0" }
-          echo "version=$v" >> $env:GITHUB_OUTPUT
-
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
 

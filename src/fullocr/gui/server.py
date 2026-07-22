@@ -21,6 +21,7 @@ from pathlib import Path
 from fastapi import FastAPI, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse
 
+from .. import __version__
 from ..batch import process_pdf
 from ..config import PipelineConfig, RenderConfig
 from .jobs import Job, JobManager
@@ -135,8 +136,17 @@ def _safe_name(name: str) -> str:
 
 
 @app.get("/", response_class=HTMLResponse)
-def index() -> str:
-    return (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+def index() -> HTMLResponse:
+    html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+    # アップデート後に古いページが埋め込みブラウザにキャッシュされて「変わっていない」
+    # ように見えるのを防ぐ（毎回サーバから読み直させる）。
+    return HTMLResponse(html, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/api/version")
+def version() -> dict:
+    """画面に出すアプリのバージョン（ビルド時に __init__.py へ焼き込まれる）。"""
+    return {"version": __version__}
 
 
 @app.post("/api/convert")

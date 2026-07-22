@@ -18,6 +18,7 @@
   }
   .wrap{max-width:720px; margin:0 auto; padding:32px 20px 60px;}
   h1{font-size:22px; margin:0 0 4px; font-weight:700;}
+  h1 .version{font-size:13px; font-weight:600; color:var(--accent); vertical-align:middle; margin-left:6px;}
   .sub{color:var(--ink-soft); font-size:13px; margin:0 0 28px;}
 
   .dropzone{
@@ -149,7 +150,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>FullOCR</h1>
+  <h1>FullOCR <span id="appVersion" class="version"></span></h1>
   <p class="sub">自炊PDFを構造化Markdownに変換します。複数ファイルをまとめてドラッグ&ドロップできます。</p>
 
   <div class="dropzone" id="dropzone">
@@ -277,6 +278,10 @@ function showBanner(msg){ banner.textContent = msg; banner.style.display = msg ?
 
 // ---- 保存済み設定の読み込み（APIキー・オプション） ----
 window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const v = await (await fetch('/api/version')).json();
+    if (v && v.version) $('appVersion').textContent = 'v' + v.version;
+  } catch (e) { /* バージョン取得失敗は無視 */ }
   try {
     const s = await (await fetch('/api/settings')).json();
     if (s && s.remember) {

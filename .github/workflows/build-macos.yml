@@ -39,6 +39,18 @@ jobs:
           uv pip install --python .venv/bin/python -e ".[docling,pdf,gui,llm]"
           uv pip install --python .venv/bin/python pyinstaller
 
+      # GUI に表示するバージョンを __init__.py に焼き込む（タグ or release_version）。
+      - name: Stamp version into package
+        working-directory: fullocr
+        run: |
+          REF="${{ github.ref_name }}"
+          INP="${{ github.event.inputs.release_version }}"
+          if [[ "$INP" =~ ^v?([0-9]+\.[0-9]+\.[0-9]+) ]]; then VER="${BASH_REMATCH[1]}"
+          elif [[ "$REF" =~ ^v([0-9]+\.[0-9]+\.[0-9]+) ]]; then VER="${BASH_REMATCH[1]}"
+          else VER="0.0.0"; fi
+          sed -i '' "s/__version__ = \".*\"/__version__ = \"$VER\"/" src/fullocr/__init__.py
+          echo "stamped version $VER"
+
       - name: Build FullOCR.app
         working-directory: fullocr
         run: .venv/bin/pyinstaller packaging/fullocr-gui-mac.spec
