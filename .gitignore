@@ -35,3 +35,6 @@ Thumbs.db
 .idea/
 .vscode/
 .claude/
+
+# ビルド時に prefetch する Docling モデル（リポジトリには含めない）
+docling_artifacts/

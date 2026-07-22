@@ -59,19 +59,29 @@ jobs:
           $f = "src\fullocr\__init__.py"
           (Get-Content $f) -replace '__version__ = ".*"', '__version__ = "${{ steps.ver.outputs.version }}"' | Set-Content $f
 
+      # Docling のレイアウト/表モデルをビルド前に取得（spec が docling_artifacts/ を同梱）。
+      # 実行時 DL 失敗（Missing safetensors）を避け、オフラインで動くようにする。
+      - name: Prefetch Docling models
+        working-directory: fullocr
+        run: .venv\Scripts\python.exe -c "from pathlib import Path; from docling.utils.model_downloader import download_models; download_models(output_dir=Path('docling_artifacts'))"
+
       - name: Build fullocr-gui.exe
         working-directory: fullocr
         run: .venv\Scripts\pyinstaller.exe packaging\fullocr-gui.spec
 
       # Guard: docling-parse dies at runtime if its glyph resources are missing.
       # Fail the build here rather than shipping an installer that can't convert.
-      - name: Verify docling_parse resources are bundled
+      - name: Verify docling resources are bundled
         working-directory: fullocr
         shell: pwsh
         run: |
           $p = "dist\fullocr-gui\_internal\docling_parse\pdf_resources\glyphs\standard\additional.dat"
           if (!(Test-Path $p)) { Write-Error "Missing $p - docling_parse resources not bundled"; exit 1 }
-          Write-Host "OK: docling_parse resources present ($p)"
+          Write-Host "OK: docling_parse resources present"
+          $m = "dist\fullocr-gui\_internal\docling_artifacts"
+          $st = Get-ChildItem -Recurse -File $m -Filter *.safetensors -ErrorAction SilentlyContinue
+          if (!$st) { Write-Error "No .safetensors under $m - Docling layout model not bundled"; exit 1 }
+          Write-Host "OK: Docling models bundled ($($st.Count) safetensors)"
 
       # --- NDLOCR-Lite: separate license/deps, built as its own companion exe ---
       - name: Clone NDLOCR-Lite

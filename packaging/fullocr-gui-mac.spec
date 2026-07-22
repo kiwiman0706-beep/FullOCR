@@ -51,6 +51,16 @@ for _dirpath, _dirnames, _filenames in os.walk(_res_root):
     for _fn in _filenames:
         datas.append((os.path.join(_dirpath, _fn), os.path.join("docling_parse", _rel)))
 
+# Docling のレイアウト/表モデル（safetensors）をビルド前 prefetch したものを同梱。
+# 実行時に HF から DL して失敗するのを避け、artifacts_path でオフライン参照する。
+_art_root = os.path.join(ROOT, "docling_artifacts")
+if os.path.isdir(_art_root):
+    for _dirpath, _dirnames, _filenames in os.walk(_art_root):
+        _rel = os.path.relpath(_dirpath, _art_root)
+        _dest = "docling_artifacts" if _rel == "." else os.path.join("docling_artifacts", _rel)
+        for _fn in _filenames:
+            datas.append((os.path.join(_dirpath, _fn), _dest))
+
 # 任意依存: google-genai(.[llm])。入っていれば同梱。
 for pkg in ("google.genai",):
     try:

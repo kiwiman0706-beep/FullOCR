@@ -314,12 +314,28 @@ class _LogForwarder(logging.Handler):
             pass
 
 
+def _bundled_artifacts_path() -> Path | None:
+    """凍結アプリに同梱した Docling モデル置き場を返す（無ければ None）。
+
+    Docling はレイアウト/表モデル(safetensors 等)を実行時に HuggingFace から DL する。
+    exe 内ではこの DL が失敗する（Missing safetensors）ため、ビルド時に取得して
+    `_internal/docling_artifacts` に同梱し、実行時はそこを artifacts_path に指定して
+    オフラインで読む。PyInstaller onedir では sys._MEIPASS が _internal を指す。
+    """
+    base = getattr(sys, "_MEIPASS", None)
+    if not base:
+        return None
+    path = Path(base) / "docling_artifacts"
+    return path if path.exists() else None
+
+
 def run_docling_inprocess(input_pdf: str | Path, outdir: str | Path, on_output=None) -> Path:
     """Docling の Python API を直接呼んで JSON を書き出す（exe 同梱用）。
 
     `docling convert {input} --to json --output {outdir} --no-ocr` と等価な処理を
     サブプロセスを介さず行う。`on_output` を渡すと、docling のロガー出力（ページ処理
     などの進捗）を拾って流す（凍結アプリには標準出力が無いので logging で拾う）。
+    モデルを同梱していれば artifacts_path で指定し、ネット無しで動かす。
     """
     from docling.datamodel.base_models import InputFormat
     from docling.datamodel.pipeline_options import PdfPipelineOptions
@@ -337,7 +353,11 @@ def run_docling_inprocess(input_pdf: str | Path, outdir: str | Path, on_output=N
         dlog.addHandler(handler)
         dlog.setLevel(logging.INFO)  # ページ処理ログを拾えるレベルに
     try:
-        pipeline_options = PdfPipelineOptions(do_ocr=False)
+        opts: dict = {"do_ocr": False}
+        artifacts = _bundled_artifacts_path()
+        if artifacts is not None:
+            opts["artifacts_path"] = str(artifacts)  # 同梱モデルをオフラインで使う
+        pipeline_options = PdfPipelineOptions(**opts)
         converter = DocumentConverter(
             format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)}
         )

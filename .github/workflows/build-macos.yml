@@ -51,6 +51,11 @@ jobs:
           sed -i '' "s/__version__ = \".*\"/__version__ = \"$VER\"/" src/fullocr/__init__.py
           echo "stamped version $VER"
 
+      # Docling のレイアウト/表モデルをビルド前に取得（spec が docling_artifacts/ を同梱）。
+      - name: Prefetch Docling models
+        working-directory: fullocr
+        run: .venv/bin/python -c "from pathlib import Path; from docling.utils.model_downloader import download_models; download_models(output_dir=Path('docling_artifacts'))"
+
       - name: Build FullOCR.app
         working-directory: fullocr
         run: .venv/bin/pyinstaller packaging/fullocr-gui-mac.spec

@@ -125,6 +125,7 @@
     margin:0; padding:12px 14px; background:#2b2622; color:#e9e1d6; border-radius:8px;
     font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; font-size:12px; line-height:1.55;
     height:200px; overflow-y:auto; white-space:pre-wrap; word-break:break-word;
+    user-select:text; -webkit-user-select:text; cursor:text;
   }
   .console .ln{display:block;}
   .console .ln .ts{color:#8f8578;}
@@ -251,6 +252,7 @@
       <div class="console-head">
         <h2>ログ</h2>
         <div class="toggles">
+          <button type="button" id="copyLogBtn" title="表示中のログを全部コピー">コピー</button>
           <button type="button" id="engineLogBtn" title="NDLOCR / Docling の生の出力を表示">エンジン詳細: ON</button>
           <button type="button" id="autoscrollBtn" title="最新行に自動で追従">自動スクロール: ON</button>
         </div>
@@ -426,9 +428,38 @@ function renderJobs(jobs){
   }
 }
 
-const consoleEl = $('console'), autoscrollBtn = $('autoscrollBtn'), engineLogBtn = $('engineLogBtn');
+const consoleEl = $('console'), autoscrollBtn = $('autoscrollBtn'), engineLogBtn = $('engineLogBtn'), copyLogBtn = $('copyLogBtn');
 let autoscroll = true, showEngine = true;
 let lastLog = [];
+
+function logAsText(){
+  return lastLog
+    .filter(e => showEngine || e.kind !== 'engine')
+    .map(e => {
+      const pct = (e.percent == null) ? '' : ` ${e.percent}%`;
+      return `${e.t}\t${e.file}\t${e.msg}${pct}`;
+    })
+    .join('\n');
+}
+copyLogBtn.addEventListener('click', async () => {
+  const text = logAsText();
+  let ok = false;
+  try {
+    await navigator.clipboard.writeText(text);
+    ok = true;
+  } catch (e) {
+    // 埋め込みブラウザで clipboard API が使えない場合のフォールバック。
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+    } catch (e2) { ok = false; }
+  }
+  copyLogBtn.textContent = ok ? 'コピーしました' : 'コピー失敗';
+  setTimeout(() => { copyLogBtn.textContent = 'コピー'; }, 1500);
+});
 autoscrollBtn.addEventListener('click', () => {
   autoscroll = !autoscroll;
   autoscrollBtn.textContent = '自動スクロール: ' + (autoscroll ? 'ON' : 'OFF');
