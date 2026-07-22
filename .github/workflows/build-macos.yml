@@ -89,12 +89,14 @@ jobs:
             -ov -format UDZO \
             FullOCR.dmg
 
+      # Release 公開時は Actions アーティファクト（別枠の容量・上限あり）には上げない。
       - name: Upload artifact
+        if: github.event.inputs.release_version == '' && !startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v4
         with:
           name: FullOCR-macos-dmg
           path: FullOCR.dmg
-          retention-days: 14
+          retention-days: 7
 
       # Release への公開は タグ(v*) push、または workflow_dispatch で release_version
       # を入れたとき。Windows 側と同じタグの同じ Release に追記される（upsert）。
