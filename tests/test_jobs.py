@@ -110,6 +110,31 @@ def test_runner_error_captures_message_and_traceback():
     assert "log_path" in job  # 既定は空文字（server 側でのみ埋まる）
 
 
+def test_progress_updates_job_and_log():
+    seen: list[tuple[int, str]] = []
+
+    def runner(job):
+        # runner 内から進捗を報告（server の on_step 相当）
+        m.progress(job.id, 30, "OCR実行中…")
+        m.progress(job.id, 70, "統合中…")
+        seen.append((job.percent, job.step))
+
+    m = JobManager(runner)
+    m.enqueue("a.pdf", "a", "o")
+    _wait_idle(m)
+
+    job = m.list_jobs()[0]
+    assert job["status"] == "done"
+    assert job["percent"] == 100  # 完了時に100へ
+    assert job["step"] == "完了"
+
+    msgs = [e["msg"] for e in m.status()["log"]]
+    assert "変換を開始しました" in msgs
+    assert "OCR実行中…" in msgs
+    assert "統合中…" in msgs
+    assert "完了しました" in msgs
+
+
 def test_list_jobs_order_finished_then_pending():
     m = JobManager(lambda job: None)
     m.pause()

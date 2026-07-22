@@ -17,8 +17,10 @@ CPU を使い切るため）。処理の粒度は"ファイル単位"で、実�
 from __future__ import annotations
 
 import threading
+import time
 import traceback
 import uuid
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -33,6 +35,8 @@ class Job:
     status: str = "queued"  # queued / processing / done / skipped / error / canceled
     error: str = ""          # 例外の1行メッセージ（表示のサマリ）
     traceback: str = ""      # 例外の全トレースバック（クリックで開く詳細）
+    percent: int = 0         # 処理中の進捗（0-100、段階ベース）
+    step: str = ""           # 処理中の段階ラベル（「OCR実行中…」など）
     # 1冊分の設定・フラグ（server が詰める。テストでは任意）。
     meta: dict[str, Any] = field(default_factory=dict)
 
@@ -45,6 +49,8 @@ class Job:
             "error": self.error,
             "traceback": self.traceback,
             "log_path": self.meta.get("log_path", ""),
+            "percent": self.percent,
+            "step": self.step,
             "pending": self.status == "queued",
         }
 
@@ -63,6 +69,8 @@ class JobManager:
         self._paused = False
         self._stop = False
         self._worker: threading.Thread | None = None
+        # 全ジョブ横断の進捗ログ（コンソール表示用）。古い行は捨てる。
+        self._log: deque[dict] = deque(maxlen=500)
 
     # ---- 投入 -----------------------------------------------------------
     def enqueue(self, filename: str, path: str, output_dir: str, meta: dict | None = None) -> str:
@@ -120,6 +128,30 @@ class JobManager:
             self._queue[i], self._queue[j] = self._queue[j], self._queue[i]
             return True
 
+    # ---- 進捗 -----------------------------------------------------------
+    def progress(self, job_id: str, percent: float, label: str) -> None:
+        """処理中ジョブの進捗を更新し、横断ログにも1行足す（runner から呼ぶ）。"""
+        with self._cv:
+            job = self._jobs.get(job_id)
+            if job is None:
+                return
+            job.percent = max(0, min(100, int(percent)))
+            job.step = label
+            self._append_log(job.filename, label, job.percent)
+
+    def _append_log(self, filename: str, message: str, percent: int | None = None) -> None:
+        """ロック保持中に呼ぶ前提。コンソール表示用の1行を積む。"""
+        self._log.append({
+            "t": time.strftime("%H:%M:%S"),
+            "file": filename,
+            "msg": message,
+            "percent": percent,
+        })
+
+    def log_tail(self, n: int = 200) -> list[dict]:
+        with self._cv:
+            return list(self._log)[-n:]
+
     # ---- 状態 -----------------------------------------------------------
     def status(self) -> dict:
         with self._cv:
@@ -129,6 +161,7 @@ class JobManager:
                 "paused": self._paused,
                 "current": self._current,
                 "pending": len(self._queue),
+                "log": list(self._log)[-200:],
             }
 
     def list_jobs(self) -> list[dict]:
@@ -157,16 +190,30 @@ class JobManager:
                     return
                 job = self._jobs[self._queue.pop(0)]
                 job.status = "processing"
+                job.percent = 0
+                job.step = "開始…"
                 self._current = job.id
+                self._append_log(job.filename, "変換を開始しました", 0)
             # 実処理はロック外（長時間）
             try:
                 self._runner(job)
                 if job.status == "processing":
                     job.status = "done"
+                with self._cv:
+                    if job.status == "done":
+                        job.percent = 100
+                        job.step = "完了"
+                        self._append_log(job.filename, "完了しました", 100)
+                    elif job.status == "skipped":
+                        job.step = "スキップ（変換済み）"
+                        self._append_log(job.filename, "変換済みのためスキップしました")
             except Exception as e:  # noqa: BLE001 - 1冊失敗で全体を止めない
                 job.status = "error"
                 job.error = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
                 job.traceback = traceback.format_exc()
+                job.step = "エラー"
+                with self._cv:
+                    self._append_log(job.filename, f"エラー: {job.error}")
             finally:
                 with self._cv:
                     self._current = None

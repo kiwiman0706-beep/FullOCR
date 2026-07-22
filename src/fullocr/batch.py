@@ -66,11 +66,16 @@ def render_pdf_pages(pdf_path: str | Path, out_dir: Path, dpi: int = 200) -> lis
     return paths
 
 
+def _noop_step(percent: float, label: str) -> None:
+    """進捗コールバック未指定時のデフォルト（何もしない）。"""
+
+
 def build_ir_for_pdf(
     pdf_path: str | Path,
     cfg: PipelineConfig,
     *,
     run_engines: bool = True,
+    on_step=None,
 ) -> Document:
     """1 PDF を IR まで持っていく（Markdown 化はしない）。
 
@@ -78,7 +83,12 @@ def build_ir_for_pdf(
     JSON を読むだけ（再マージ・GUI補正のやり直しに使える）。
 
     構造エンジンは cfg.engine（docling / mineru / marker）で選択。
+
+    on_step(percent, label) を渡すと各段階で進捗を報告する（GUI のバー・ログ用）。
+    段階は単発の外部プロセス（OCR/レイアウト解析）が長丁場なので、細かい％では
+    なく「いま何をしているか」を主に伝える粒度。
     """
+    step = on_step or _noop_step
     pdf_path = Path(pdf_path)
     stem = pdf_path.stem
     work = cfg.work_dir / stem
@@ -90,16 +100,21 @@ def build_ir_for_pdf(
 
     if run_engines:
         if cfg.ndl.enabled:
+            step(3, "NDLOCR-Lite（日本語OCR）を実行中…（時間がかかります）")
             ndl_mod.run_ndl(pdf_path, ndl_out, cfg.ndl)
         # NDL の透明PDFがあれば構造エンジン/ページ描画に使う。無ければ元PDF。
         transparent = _first_glob(ndl_out, cfg.ndl.pdf_glob) or pdf_path
         if getattr(engine_cfg, "enabled", True):
+            step(35, f"レイアウト解析（{cfg.engine}）を実行中…")
             run_engine(transparent, engine_out, engine_cfg)
+        step(58, "ページ画像を描画中…")
         render_pdf_pages(transparent, pages_out)
 
+    step(66, "OCR結果を読み込み中…")
     ndl_pages = ndl_mod.load_ndl_dir(ndl_out, cfg.ndl.json_glob)
     layout_pages: list[LayoutPage] = load_engine(engine_out, engine_cfg.json_glob)
 
+    step(70, "テキストとレイアウトを統合中…")
     meta = DocMeta(title=stem, source_pdf=str(pdf_path))
     doc = merge_mod.build_document(ndl_pages, layout_pages, cfg, meta=meta)
 
@@ -111,9 +126,12 @@ def build_ir_for_pdf(
 
     # ルールベース本文整形（無料・既定ON。ページ境界の改行連結・ノンブル除去）。
     if cfg.text_cleanup:
+        step(78, "本文を整形中（改行・ノンブル）…")
         textclean_mod.clean_document(doc)
 
     # LLM 構造化パス（任意）: 見出し階層＋異常検出＋本文リライト＋図alt。キー無しは no-op。
+    if cfg.structure_llm.enabled:
+        step(84, "AIで見出し構造を解析中…")
     review = structure_mod.run_structure_llm(doc, cfg.structure_llm)
     if review:
         doc.meta.structure_review = review
@@ -126,27 +144,36 @@ def process_pdf(
     cfg: PipelineConfig,
     *,
     run_engines: bool = True,
+    on_step=None,
 ) -> Path:
-    """1 PDF を Obsidian 用 Markdown まで変換。出力フォルダを返す。"""
+    """1 PDF を Obsidian 用 Markdown まで変換。出力フォルダを返す。
+
+    on_step(percent, label) を渡すと段階ごとに進捗を報告する。
+    """
+    step = on_step or _noop_step
     pdf_path = Path(pdf_path)
-    doc = build_ir_for_pdf(pdf_path, cfg, run_engines=run_engines)
+    doc = build_ir_for_pdf(pdf_path, cfg, run_engines=run_engines, on_step=on_step)
 
     # IR を保存（GUI 補正の入力になる）。
+    step(90, "中間データ(IR)を保存中…")
     ir_path = cfg.work_dir / pdf_path.stem / "ir.json"
     ir_path.parent.mkdir(parents=True, exist_ok=True)
     doc.save(ir_path)
 
+    step(93, "Markdownを書き出し中…")
     out_book = cfg.out_dir / pdf_path.stem
     render_document(doc, out_book, cfg.render)
     _write_structure_review(doc, out_book)
 
     # NDL の透明テキストPDF（OCR結果の目視確認・別ツールでの再利用に使える）を
     # 作業ディレクトリから出力フォルダにもコピーしておく。
+    step(98, "OCRテキスト付きPDFをコピー中…")
     ndl_out = cfg.work_dir / pdf_path.stem / "ndl"
     transparent_pdf = _first_glob(ndl_out, cfg.ndl.pdf_glob)
     if transparent_pdf is not None:
         shutil.copy2(transparent_pdf, out_book / transparent_pdf.name)
 
+    step(100, "完了")
     return out_book
 
 

@@ -111,8 +111,12 @@ def _run_one(job: Job) -> None:
     if job.meta.get("skip_existing", True) and (out_book / "00_index.md").exists():
         job.status = "skipped"
         return
+
+    def _on_step(percent: float, label: str) -> None:
+        manager.progress(job.id, percent, label)
+
     try:
-        process_pdf(pdf_path, cfg)
+        process_pdf(pdf_path, cfg, on_step=_on_step)
     except Exception as e:
         log_path = _log_failure(pdf_path, e)
         if log_path is not None:
