@@ -129,6 +129,9 @@
   .console .ln .ts{color:#8f8578;}
   .console .ln .fn{color:#7fb3a6;}
   .console .ln .pc{color:#d8a657;}
+  .console .ln.stage{color:#a9d3c4;}                 /* 段階の節目は少し明るく */
+  .console .ln.engine{color:#b3aa9c;}                /* エンジンの生ログは控えめ */
+  .console-head .toggles{display:flex; gap:6px; align-items:center;}
   .outpath{font-size:11px; color:var(--ink-soft); word-break:break-all;}
   .open-link{color:var(--accent); cursor:pointer; text-decoration:underline;}
   .rowbtns{display:flex; gap:4px;}
@@ -246,7 +249,10 @@
     <div class="console-card">
       <div class="console-head">
         <h2>ログ</h2>
-        <button type="button" id="autoscrollBtn" title="最新行に自動で追従">自動スクロール: ON</button>
+        <div class="toggles">
+          <button type="button" id="engineLogBtn" title="NDLOCR / Docling の生の出力を表示">エンジン詳細: ON</button>
+          <button type="button" id="autoscrollBtn" title="最新行に自動で追従">自動スクロール: ON</button>
+        </div>
       </div>
       <div class="console" id="console"></div>
     </div>
@@ -415,17 +421,26 @@ function renderJobs(jobs){
   }
 }
 
-const consoleEl = $('console'), autoscrollBtn = $('autoscrollBtn');
-let autoscroll = true;
+const consoleEl = $('console'), autoscrollBtn = $('autoscrollBtn'), engineLogBtn = $('engineLogBtn');
+let autoscroll = true, showEngine = true;
+let lastLog = [];
 autoscrollBtn.addEventListener('click', () => {
   autoscroll = !autoscroll;
   autoscrollBtn.textContent = '自動スクロール: ' + (autoscroll ? 'ON' : 'OFF');
 });
+engineLogBtn.addEventListener('click', () => {
+  showEngine = !showEngine;
+  engineLogBtn.textContent = 'エンジン詳細: ' + (showEngine ? 'ON' : 'OFF');
+  renderConsole(lastLog);  // 即時反映
+});
 function renderConsole(log){
   if (!Array.isArray(log)) return;
-  consoleEl.innerHTML = log.map(e => {
+  lastLog = log;
+  const rows = log.filter(e => showEngine || e.kind !== 'engine');
+  consoleEl.innerHTML = rows.map(e => {
     const pct = (e.percent == null) ? '' : ` <span class="pc">${e.percent}%</span>`;
-    return `<span class="ln"><span class="ts">${esc(e.t)}</span> <span class="fn">${esc(e.file)}</span> ${esc(e.msg)}${pct}</span>`;
+    const kind = e.kind || 'event';
+    return `<span class="ln ${kind}"><span class="ts">${esc(e.t)}</span> <span class="fn">${esc(e.file)}</span> ${esc(e.msg)}${pct}</span>`;
   }).join('');
   if (autoscroll) consoleEl.scrollTop = consoleEl.scrollHeight;
 }

@@ -115,8 +115,11 @@ def _run_one(job: Job) -> None:
     def _on_step(percent: float, label: str) -> None:
         manager.progress(job.id, percent, label)
 
+    def _on_output(line: str) -> None:
+        manager.log_line(job.id, line)
+
     try:
-        process_pdf(pdf_path, cfg, on_step=_on_step)
+        process_pdf(pdf_path, cfg, on_step=_on_step, on_output=_on_output)
     except Exception as e:
         log_path = _log_failure(pdf_path, e)
         if log_path is not None:

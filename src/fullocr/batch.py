@@ -76,6 +76,7 @@ def build_ir_for_pdf(
     *,
     run_engines: bool = True,
     on_step=None,
+    on_output=None,
 ) -> Document:
     """1 PDF を IR まで持っていく（Markdown 化はしない）。
 
@@ -101,12 +102,12 @@ def build_ir_for_pdf(
     if run_engines:
         if cfg.ndl.enabled:
             step(3, "NDLOCR-Lite（日本語OCR）を実行中…（時間がかかります）")
-            ndl_mod.run_ndl(pdf_path, ndl_out, cfg.ndl)
+            ndl_mod.run_ndl(pdf_path, ndl_out, cfg.ndl, on_output=on_output)
         # NDL の透明PDFがあれば構造エンジン/ページ描画に使う。無ければ元PDF。
         transparent = _first_glob(ndl_out, cfg.ndl.pdf_glob) or pdf_path
         if getattr(engine_cfg, "enabled", True):
             step(35, f"レイアウト解析（{cfg.engine}）を実行中…")
-            run_engine(transparent, engine_out, engine_cfg)
+            run_engine(transparent, engine_out, engine_cfg, on_output=on_output)
         step(58, "ページ画像を描画中…")
         render_pdf_pages(transparent, pages_out)
 
@@ -145,14 +146,18 @@ def process_pdf(
     *,
     run_engines: bool = True,
     on_step=None,
+    on_output=None,
 ) -> Path:
     """1 PDF を Obsidian 用 Markdown まで変換。出力フォルダを返す。
 
-    on_step(percent, label) を渡すと段階ごとに進捗を報告する。
+    on_step(percent, label) は段階の進捗、on_output(line) はエンジン(NDL/Docling)の
+    生の出力を1行ずつ受け取る（GUI のライブコンソール用）。
     """
     step = on_step or _noop_step
     pdf_path = Path(pdf_path)
-    doc = build_ir_for_pdf(pdf_path, cfg, run_engines=run_engines, on_step=on_step)
+    doc = build_ir_for_pdf(
+        pdf_path, cfg, run_engines=run_engines, on_step=on_step, on_output=on_output
+    )
 
     # IR を保存（GUI 補正の入力になる）。
     step(90, "中間データ(IR)を保存中…")

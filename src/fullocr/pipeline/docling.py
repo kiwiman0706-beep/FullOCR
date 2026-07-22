@@ -29,14 +29,15 @@ IR の左上原点(px) に正規化する。
 from __future__ import annotations
 
 import json
+import logging
 import re
-import subprocess
 import sys
 from pathlib import Path
 
 from ..config import DoclingConfig
 from ..ir import BBox, BlockType
 from .layout import LayoutBlock, LayoutPage
+from .proc import run_streaming
 from .shellutil import quote_path
 
 # Docling は同じ本の中でも図表キャプションを "caption" と "section_header" に
@@ -271,7 +272,7 @@ def load_docling_dir(outdir: str | Path, json_glob: str = "**/*.json") -> list[L
     return []
 
 
-def run_docling(input_pdf: str | Path, outdir: str | Path, cfg: DoclingConfig) -> Path:
+def run_docling(input_pdf: str | Path, outdir: str | Path, cfg: DoclingConfig, on_output=None) -> Path:
     """Docling を実行して JSON を outdir に生成する。
 
     通常（開発環境・pip install 済み）は `cfg.command` の CLI を subprocess で叩く。
@@ -280,22 +281,45 @@ def run_docling(input_pdf: str | Path, outdir: str | Path, cfg: DoclingConfig) -
     Python ライブラリとして同梱されているだけ）。`sys.frozen` で凍結実行を検知し、
     その場合だけ Docling の Python API を直接呼ぶ（同じプロセス内・同じ依存を再利用
     するので、Docling 用に別exeを二重にビルドせずに済む）。
+
+    `on_output(line)` を渡すと進捗を1行ずつ流す。CLI 経路はその標準出力、
+    in-process 経路は docling の logging を拾って渡す（GUI のライブコンソール用）。
     """
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     if getattr(sys, "frozen", False):
-        run_docling_inprocess(input_pdf, outdir)
+        run_docling_inprocess(input_pdf, outdir, on_output)
         return outdir
     cmd = cfg.command.format(input=quote_path(str(input_pdf)), outdir=quote_path(str(outdir)))
-    subprocess.run(cmd, shell=True, check=True)
+    returncode, tail = run_streaming(cmd, on_output)
+    if returncode != 0:
+        raise RuntimeError(
+            f"Docling failed (exit {returncode}) for {input_pdf}.\n"
+            f"command: {cmd}\n--- output (tail) ---\n{tail}"
+        )
     return outdir
 
 
-def run_docling_inprocess(input_pdf: str | Path, outdir: str | Path) -> Path:
+class _LogForwarder(logging.Handler):
+    """logging レコードを on_output(line) へ横流しするハンドラ（in-process用）。"""
+
+    def __init__(self, on_output) -> None:
+        super().__init__()
+        self._on_output = on_output
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            self._on_output(record.getMessage())
+        except Exception:  # noqa: BLE001 - ログ転送で本処理を止めない
+            pass
+
+
+def run_docling_inprocess(input_pdf: str | Path, outdir: str | Path, on_output=None) -> Path:
     """Docling の Python API を直接呼んで JSON を書き出す（exe 同梱用）。
 
     `docling convert {input} --to json --output {outdir} --no-ocr` と等価な処理を
-    サブプロセスを介さず行う。
+    サブプロセスを介さず行う。`on_output` を渡すと、docling のロガー出力（ページ処理
+    などの進捗）を拾って流す（凍結アプリには標準出力が無いので logging で拾う）。
     """
     from docling.datamodel.base_models import InputFormat
     from docling.datamodel.pipeline_options import PdfPipelineOptions
@@ -305,11 +329,23 @@ def run_docling_inprocess(input_pdf: str | Path, outdir: str | Path) -> Path:
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
 
-    pipeline_options = PdfPipelineOptions(do_ocr=False)
-    converter = DocumentConverter(
-        format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)}
-    )
-    result = converter.convert(str(input_pdf))
-    out_path = outdir / f"{input_pdf.stem}.json"
-    result.document.save_as_json(out_path)
-    return out_path
+    handler: _LogForwarder | None = None
+    dlog = logging.getLogger("docling")
+    prev_level = dlog.level
+    if on_output is not None:
+        handler = _LogForwarder(on_output)
+        dlog.addHandler(handler)
+        dlog.setLevel(logging.INFO)  # ページ処理ログを拾えるレベルに
+    try:
+        pipeline_options = PdfPipelineOptions(do_ocr=False)
+        converter = DocumentConverter(
+            format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)}
+        )
+        result = converter.convert(str(input_pdf))
+        out_path = outdir / f"{input_pdf.stem}.json"
+        result.document.save_as_json(out_path)
+        return out_path
+    finally:
+        if handler is not None:
+            dlog.removeHandler(handler)
+            dlog.setLevel(prev_level)

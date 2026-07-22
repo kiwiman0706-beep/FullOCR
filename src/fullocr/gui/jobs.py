@@ -69,8 +69,9 @@ class JobManager:
         self._paused = False
         self._stop = False
         self._worker: threading.Thread | None = None
-        # 全ジョブ横断の進捗ログ（コンソール表示用）。古い行は捨てる。
-        self._log: deque[dict] = deque(maxlen=500)
+        # 全ジョブ横断の進捗ログ（コンソール表示用）。エンジンの生ログも入るので
+        # やや大きめに保持し、古い行から捨てる。
+        self._log: deque[dict] = deque(maxlen=1200)
 
     # ---- 投入 -----------------------------------------------------------
     def enqueue(self, filename: str, path: str, output_dir: str, meta: dict | None = None) -> str:
@@ -137,15 +138,33 @@ class JobManager:
                 return
             job.percent = max(0, min(100, int(percent)))
             job.step = label
-            self._append_log(job.filename, label, job.percent)
+            self._append_log(job.filename, label, job.percent, kind="stage")
 
-    def _append_log(self, filename: str, message: str, percent: int | None = None) -> None:
-        """ロック保持中に呼ぶ前提。コンソール表示用の1行を積む。"""
+    def log_line(self, job_id: str, message: str) -> None:
+        """エンジン(NDL/Docling)の生の出力を1行、横断ログに積む（runner から呼ぶ）。
+
+        呼び出し頻度が高い（ページ毎など）ので percent は触らず、kind=engine で分類
+        だけしておく（GUI 側で表示/非表示を切り替えられる）。
+        """
+        with self._cv:
+            job = self._jobs.get(job_id)
+            if job is None:
+                return
+            self._append_log(job.filename, message, None, kind="engine")
+
+    def _append_log(
+        self, filename: str, message: str, percent: int | None = None, *, kind: str = "event"
+    ) -> None:
+        """ロック保持中に呼ぶ前提。コンソール表示用の1行を積む。
+
+        kind: "stage"（段階の節目）/ "engine"（エンジンの生ログ）/ "event"（開始・完了等）。
+        """
         self._log.append({
             "t": time.strftime("%H:%M:%S"),
             "file": filename,
             "msg": message,
             "percent": percent,
+            "kind": kind,
         })
 
     def log_tail(self, n: int = 200) -> list[dict]:
@@ -161,7 +180,7 @@ class JobManager:
                 "paused": self._paused,
                 "current": self._current,
                 "pending": len(self._queue),
-                "log": list(self._log)[-200:],
+                "log": list(self._log)[-300:],
             }
 
     def list_jobs(self) -> list[dict]:

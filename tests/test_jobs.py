@@ -135,6 +135,25 @@ def test_progress_updates_job_and_log():
     assert "完了しました" in msgs
 
 
+def test_engine_log_lines_flow_to_console_with_kind():
+    def runner(job):
+        m.log_line(job.id, "OCR: page 1/3")
+        m.log_line(job.id, "OCR: page 2/3")
+
+    m = JobManager(runner)
+    m.enqueue("a.pdf", "a", "o")
+    _wait_idle(m)
+
+    log = m.status()["log"]
+    engine = [e for e in log if e["kind"] == "engine"]
+    assert [e["msg"] for e in engine] == ["OCR: page 1/3", "OCR: page 2/3"]
+    # 生ログは percent を動かさない
+    assert all(e["percent"] is None for e in engine)
+    # 開始/完了は event 種別で入っている
+    kinds = {e["kind"] for e in log}
+    assert "event" in kinds
+
+
 def test_list_jobs_order_finished_then_pending():
     m = JobManager(lambda job: None)
     m.pause()

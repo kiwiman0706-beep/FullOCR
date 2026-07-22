@@ -19,12 +19,12 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
 from pathlib import Path
 
 from ..config import MarkerConfig
 from ..ir import BBox, BlockType
 from .layout import LayoutBlock, LayoutPage
+from .proc import run_streaming
 from .shellutil import quote_path
 
 # 後方互換のための別名（旧コード/テストが MarkerBlock/MarkerPage を参照する）。
@@ -164,10 +164,18 @@ def load_marker_dir(outdir: str | Path, json_glob: str = "**/*.json") -> list[Ma
     return pages
 
 
-def run_marker(input_pdf: str | Path, outdir: str | Path, cfg: MarkerConfig) -> Path:
-    """Marker CLI を実行して JSON を outdir に生成する（実行はユーザー環境）。"""
+def run_marker(input_pdf: str | Path, outdir: str | Path, cfg: MarkerConfig, on_output=None) -> Path:
+    """Marker CLI を実行して JSON を outdir に生成する（実行はユーザー環境）。
+
+    `on_output(line)` を渡すと標準出力を1行ずつ流す（GUI のライブコンソール用）。
+    """
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     cmd = cfg.command.format(input=quote_path(str(input_pdf)), outdir=quote_path(str(outdir)))
-    subprocess.run(cmd, shell=True, check=True)
+    returncode, tail = run_streaming(cmd, on_output)
+    if returncode != 0:
+        raise RuntimeError(
+            f"Marker failed (exit {returncode}) for {input_pdf}.\n"
+            f"command: {cmd}\n--- output (tail) ---\n{tail}"
+        )
     return outdir

@@ -16,12 +16,12 @@ NDLOCR-Lite の出力仕様（要点）:
 from __future__ import annotations
 
 import json
-import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..config import NDLConfig
 from ..ir import BBox, Orientation
+from .proc import run_streaming
 from .shellutil import quote_path
 
 # JSON キー名のゆらぎを吸収する別名テーブル。
@@ -206,24 +206,23 @@ def load_ndl_dir(outdir: str | Path, json_glob: str = "**/*.json") -> list[NDLPa
     return pages
 
 
-def run_ndl(input_pdf: str | Path, outdir: str | Path, cfg: NDLConfig) -> Path:
+def run_ndl(input_pdf: str | Path, outdir: str | Path, cfg: NDLConfig, on_output=None) -> Path:
     """NDLOCR-Lite CLI を実行して JSON / 透明PDF を outdir に生成する。
 
     実バイナリはこの環境には無いので、実際の変換時（ユーザーの Windows）に走る。
-    戻り値は outdir。
+    戻り値は outdir。`on_output(line)` を渡すと、NDL の標準出力を1行ずつ流す
+    （GUI のライブコンソール用）。失敗時は末尾を例外に載せる（GUI にはコンソールが
+    無いため、これをしないと失敗理由がどこにも残らない）。
     """
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     # 自炊本のファイル名は空白・記号を含みがち（実データで確認済み）。shell=True の
     # コマンド文字列に埋め込む前に quote してトークン分割崩れを防ぐ。
     cmd = cfg.command.format(input=quote_path(str(input_pdf)), outdir=quote_path(str(outdir)))
-    # 出力を握り、失敗時は末尾を例外に載せる。GUI(コンソール無し)ではプロセスの
-    # stderr がどこにも出ないため、これをしないと NDL 失敗理由がログに残らない。
-    proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-    if proc.returncode != 0:
-        tail = ((proc.stderr or "") + (proc.stdout or "")).strip()[-2000:]
+    returncode, tail = run_streaming(cmd, on_output)
+    if returncode != 0:
         raise RuntimeError(
-            f"NDLOCR-Lite failed (exit {proc.returncode}) for {input_pdf}.\n"
+            f"NDLOCR-Lite failed (exit {returncode}) for {input_pdf}.\n"
             f"command: {cmd}\n--- output (tail) ---\n{tail}"
         )
     return outdir
