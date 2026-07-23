@@ -70,12 +70,24 @@ def _block_to_md(b: Block, cfg: RenderConfig) -> str | None:
     return t  # BODY / OTHER
 
 
-def _page_to_md(page: Page, cfg: RenderConfig) -> list[str]:
+def _hidden_pages(doc: Document, cfg: RenderConfig) -> set[int]:
+    """本文でコメントアウトして隠すページ番号（印刷目次ページ）。"""
+    return set(doc.meta.toc_pages) if cfg.hide_toc_pages else set()
+
+
+def _maybe_comment(md: str, hide: bool) -> str:
+    """hide が真なら Obsidian のコメント（%% … %%）で囲んで非表示にする。"""
+    return f"%%\n{md}\n%%" if hide else md
+
+
+def _page_to_md(page: Page, cfg: RenderConfig, hidden: set[int] | None = None) -> list[str]:
+    hidden = hidden or set()
+    hide = page.number in hidden
     chunks: list[str] = []
     for b in page.ordered_blocks():
         md = _block_to_md(b, cfg)
         if md:
-            chunks.append(md)
+            chunks.append(_maybe_comment(md, hide))
     return chunks
 
 
@@ -156,10 +168,11 @@ def _split_documents(doc: Document, cfg: RenderConfig) -> list[tuple[str, list[s
     新ファイルを開始する。
     """
     level = cfg.split_by_heading_level
+    hidden = _hidden_pages(doc, cfg)
     if level is None:
         body: list[str] = []
         for page in doc.pages:
-            body.extend(_page_to_md(page, cfg))
+            body.extend(_page_to_md(page, cfg, hidden))
         title = doc.meta.title or "document"
         return [(slugify(title), body)]
 
@@ -175,6 +188,7 @@ def _split_documents(doc: Document, cfg: RenderConfig) -> list[tuple[str, list[s
             current = []
 
     for page in doc.pages:
+        hide = page.number in hidden
         for b in page.ordered_blocks():
             if (
                 b.type is BlockType.HEADING
@@ -186,7 +200,7 @@ def _split_documents(doc: Document, cfg: RenderConfig) -> list[tuple[str, list[s
                 idx += 1
             md = _block_to_md(b, cfg)
             if md:
-                current.append(md)
+                current.append(_maybe_comment(md, hide))
     flush()
     if not sections:  # 見出しが無かった場合の保険
         sections.append(("01_document", current))

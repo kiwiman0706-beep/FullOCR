@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 
 from .config import PipelineConfig
-from .ir import DocMeta, Document
+from .ir import BlockType, DocMeta, Document
 from .pipeline import docling as docling_mod
 from .pipeline import marker as marker_mod
 from .pipeline import merge as merge_mod
@@ -26,6 +26,7 @@ from .pipeline import mineru as mineru_mod
 from .pipeline import ndl as ndl_mod
 from .pipeline import structure_llm as structure_mod
 from .pipeline import textclean as textclean_mod
+from .pipeline import tocdetect as tocdetect_mod
 from .pipeline.layout import LayoutPage
 from .render import render_document
 
@@ -125,6 +126,9 @@ def build_ir_for_pdf(
         if i < len(page_imgs):
             page.image_path = str(page_imgs[i])
 
+    # 印刷された目次ページの範囲を推定（無料・規則ベース）。非表示化・突き合わせの起点。
+    doc.meta.toc_pages = tocdetect_mod.detect_toc_pages(doc)
+
     # ルールベース本文整形（無料・既定ON。ページ境界の改行連結・ノンブル除去）。
     if cfg.text_cleanup:
         step(78, "本文を整形中（改行・ノンブル）…")
@@ -134,8 +138,10 @@ def build_ir_for_pdf(
     if cfg.structure_llm.enabled:
         step(84, "AIで見出し構造を解析中…")
     review = structure_mod.run_structure_llm(doc, cfg.structure_llm)
-    if review:
-        doc.meta.structure_review = review
+
+    # 章番号の飛び・重複チェック（無料・規則ベース）。LLM の有無に関わらず付ける。
+    seq = tocdetect_mod.heading_sequence_report(doc)
+    doc.meta.structure_review = "\n\n".join(s for s in (review, seq) if s) or None
 
     return doc
 
@@ -176,10 +182,59 @@ def process_pdf(
     ndl_out = cfg.work_dir / pdf_path.stem / "ndl"
     transparent_pdf = _first_glob(ndl_out, cfg.ndl.pdf_glob)
     if transparent_pdf is not None:
-        shutil.copy2(transparent_pdf, out_book / transparent_pdf.name)
+        dest_pdf = out_book / transparent_pdf.name
+        shutil.copy2(transparent_pdf, dest_pdf)
+        # 認識した見出しから PDF のしおり(アウトライン)を付ける。
+        if cfg.pdf_bookmarks:
+            add_pdf_bookmarks(dest_pdf, doc)
 
     step(100, "完了")
     return out_book
+
+
+def _normalize_toc_levels(entries: list[list]) -> list[list]:
+    """fitz.set_toc 用にレベルを正規化（先頭は1、増加は1段ずつ）。"""
+    out: list[list] = []
+    prev = 0
+    for lvl, title, page in entries:
+        lvl = max(1, int(lvl))
+        if not out:
+            lvl = 1
+        elif lvl > prev + 1:
+            lvl = prev + 1
+        out.append([lvl, title, page])
+        prev = lvl
+    return out
+
+
+def add_pdf_bookmarks(pdf_path: str | Path, doc: Document) -> bool:
+    """透明テキストPDFに、IRの見出し→ページから PDF のしおり(アウトライン)を書き込む。
+
+    PyMuPDF(fitz) が無ければ何もしない（False）。ページ番号は IR の 1 始まりを使い、
+    PDF の実ページ数にクランプする。fitz はレベルの飛びに厳しいので正規化する。
+    """
+    try:
+        import fitz  # PyMuPDF
+    except ImportError:
+        return False
+
+    headings = [
+        (min(6, max(1, b.heading_level or 1)), b.text.strip(), page.number)
+        for page in doc.pages
+        for b in page.ordered_blocks()
+        if b.type is BlockType.HEADING and b.text.strip()
+    ]
+    if not headings:
+        return False
+    try:
+        with fitz.open(str(pdf_path)) as d:
+            n = d.page_count
+            toc = [[lvl, title[:200], min(max(1, pg), n)] for lvl, title, pg in headings]
+            d.set_toc(_normalize_toc_levels(toc))
+            d.saveIncr()
+        return True
+    except Exception:  # noqa: BLE001 - しおり付与の失敗で変換全体を止めない
+        return False
 
 
 def _write_structure_review(doc: Document, out_book: Path) -> None:

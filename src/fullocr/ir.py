@@ -121,6 +121,9 @@ class DocMeta(BaseModel):
     source_pdf: str | None = None
     # LLM 構造化パスが生成した構成評価レポート（あれば _structure_review.md に出力）。
     structure_review: str | None = None
+    # 印刷された「目次」ページのページ番号（tocdetect が推定）。非表示化・LLMへの
+    # 目次画像送付・見出しとの突き合わせの起点になる。
+    toc_pages: list[int] = Field(default_factory=list)
 
 
 class Document(BaseModel):

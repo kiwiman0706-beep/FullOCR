@@ -175,6 +175,8 @@ async def convert(
     skip_existing: bool = Form(True),
     out_dir: str = Form(""),
     text_cleanup: bool = Form(True),
+    hide_toc_pages: bool = Form(False),
+    pdf_bookmarks: bool = Form(True),
     llm_structure: bool = Form(False),
     llm_anomaly: bool = Form(False),
     llm_rewrite: bool = Form(False),
@@ -187,11 +189,13 @@ async def convert(
     if out_dir.strip():
         cfg.out_dir = Path(out_dir.strip())
     cfg.text_cleanup = text_cleanup
+    cfg.pdf_bookmarks = pdf_bookmarks
     cfg.render = RenderConfig(
         drop_headers_footers=drop_headers_footers,
         obsidian_wiklinks=obsidian_wiklinks,
         front_matter=front_matter,
         split_by_heading_level=1 if split_chapters else None,
+        hide_toc_pages=hide_toc_pages,
     )
     if llm_structure:
         cfg.structure_llm.enabled = True

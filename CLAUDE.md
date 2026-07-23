@@ -144,7 +144,18 @@ structure engine (layout only)  ────┘      (build_document)
   a placeholder blockquote if no page image exists), and uses Obsidian wikilinks for images/TOC by
   default. `render_document` clears stale `*.md` files and `images_dirname/*` from `out_dir` before
   writing — needed because re-rendering the same book with different render options (e.g. via
-  `--no-engines`) used to leave old split files behind.
+  `--no-engines`) used to leave old split files behind. `RenderConfig.hide_toc_pages` wraps the
+  blocks of printed-TOC pages (`DocMeta.toc_pages`) in Obsidian `%% … %%` comments instead of
+  dropping them (the generated `#` outline makes the printed 目次 redundant).
+- `pipeline/tocdetect.py` — free/rule-based, runs in `build_ir_for_pdf` after merge:
+  `detect_toc_pages` finds the printed 目次 page range (front pages whose lines mostly end in a page
+  number / leader dots, or carry a 目次/CONTENTS title) → `DocMeta.toc_pages`; this is the primitive
+  everything TOC-related builds on (hide, future "send the 目次 page image to the LLM", validation).
+  `heading_sequence_report` flags 第N章 gaps/dups/reversals (e.g. 第1章→第3章) and is appended to
+  `_structure_review.md` regardless of whether the LLM pass ran.
+- `batch.add_pdf_bookmarks` (PyMuPDF) writes a PDF outline (bookmarks) into the copied transparent
+  text-PDF from the IR headings+page numbers, level-normalized for fitz; gated by
+  `PipelineConfig.pdf_bookmarks`, no-op without PyMuPDF.
 - `batch.py` orchestrates a full run per PDF: run NDL → run structure engine on NDL's transparent
   text-PDF (falls back to the original PDF if absent) → render page PNGs via PyMuPDF (optional,
   degrades to no figures) → parse both → merge → save `work/<book>/ir.json` → render to

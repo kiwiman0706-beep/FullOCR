@@ -142,6 +142,9 @@ class RenderConfig(BaseModel):
     front_matter: bool = True
     # ページ上部/下部のヘッダ・フッタ（柱・ノンブル）を本文から除外する。
     drop_headers_footers: bool = True
+    # 印刷された「目次」ページ（DocMeta.toc_pages）を本文でコメントアウトして隠す。
+    # 生成アウトライン(#見出し/Obsidian Outline)があれば印刷目次は冗長なため。
+    hide_toc_pages: bool = False
 
 
 class PipelineConfig(BaseModel):
@@ -158,6 +161,8 @@ class PipelineConfig(BaseModel):
 
     # ルールベースの本文整形（ページ境界の改行連結・ノンブル残骸除去など）。無料・既定ON。
     text_cleanup: bool = True
+    # NDL の透明テキストPDF に、認識した見出しから PDF のしおり(アウトライン)を付ける。
+    pdf_bookmarks: bool = True
 
     # 作業ディレクトリ（中間生成物）。
     work_dir: Path = Path("work")
