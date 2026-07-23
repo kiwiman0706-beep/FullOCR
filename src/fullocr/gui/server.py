@@ -22,8 +22,11 @@ from fastapi import FastAPI, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse
 
 from .. import __version__
-from ..batch import process_pdf
+from .. import estimate as estimate_mod
+from .. import library as library_mod
+from ..batch import postprocess_book, process_pdf
 from ..config import PipelineConfig, RenderConfig
+from ..ir import Document
 from .jobs import Job, JobManager
 
 app = FastAPI(title="FullOCR")
@@ -101,17 +104,13 @@ def _log_failure(pdf_path: Path, err: BaseException) -> Path | None:
 
 
 def _run_one(job: Job) -> None:
-    """1冊を処理。skip_existing で既存出力があればスキップ。
+    """1ジョブを処理。kind に応じて通常変換 or 後付けAI処理を実行する。
 
     失敗時はトレースバックをログファイルに残し、その場所を error メッセージへ
     添えたうえで再送出する（JobManager が status=error と全文を記録する）。
     """
     cfg: PipelineConfig = job.meta["cfg"]
-    pdf_path = Path(job.path)
-    out_book = cfg.out_dir / pdf_path.stem
-    if job.meta.get("skip_existing", True) and (out_book / "00_index.md").exists():
-        job.status = "skipped"
-        return
+    kind = job.meta.get("kind", "convert")
 
     def _on_step(percent: float, label: str) -> None:
         manager.progress(job.id, percent, label)
@@ -119,6 +118,23 @@ def _run_one(job: Job) -> None:
     def _on_output(line: str) -> None:
         manager.log_line(job.id, line)
 
+    if kind == "postprocess":
+        name = job.meta["name"]
+        try:
+            postprocess_book(cfg, name, job.meta["features"], on_step=_on_step, on_output=_on_output)
+        except Exception as e:
+            log_path = _log_failure(Path(name), e)
+            if log_path is not None:
+                job.meta["log_path"] = str(log_path)
+            raise
+        return
+
+    # kind == "convert"
+    pdf_path = Path(job.path)
+    out_book = cfg.out_dir / pdf_path.stem
+    if job.meta.get("skip_existing", True) and (out_book / "00_index.md").exists():
+        job.status = "skipped"
+        return
     try:
         process_pdf(pdf_path, cfg, on_step=_on_step, on_output=_on_output)
     except Exception as e:
@@ -191,15 +207,111 @@ async def convert(
         # 保存名は衝突しないよう一意化（表示名は元のまま）。
         saved = UPLOAD_DIR / f"{uuid.uuid4().hex[:8]}_{_safe_name(display)}"
         saved.write_bytes(await f.read())
+        # リトライ用に元PDFの場所を status.json に控える。
+        stem = Path(display).stem
+        data = library_mod.load_status(cfg, stem)
+        data["source_pdf"] = str(saved)
+        library_mod.save_status(cfg, stem, data)
         job_ids.append(
             manager.enqueue(
                 filename=display,
                 path=str(saved),
-                output_dir=str(cfg.out_dir / Path(display).stem),
-                meta={"cfg": cfg, "skip_existing": skip_existing},
+                output_dir=str(cfg.out_dir / stem),
+                meta={"cfg": cfg, "skip_existing": skip_existing, "kind": "convert"},
             )
         )
     return {"job_ids": job_ids}
+
+
+def _library_cfg(out_dir: str = "") -> PipelineConfig:
+    """ライブラリ/概算/後付け用の設定。out_dir 指定があればそれを見る。
+
+    work_dir（ir.json・status.json の置き場）は常に既定（base/work）。out_dir は
+    ユーザーが選んだ保存先（Obsidian保管庫など）で、生成物の有無判定と再出力先に使う。
+    """
+    cfg = _base_config()
+    if out_dir.strip():
+        cfg.out_dir = Path(out_dir.strip())
+    return cfg
+
+
+def _merged_library(cfg: PipelineConfig) -> list[dict]:
+    """ディスク上の書籍一覧に、実行中/待機/失敗ジョブのライブ状態を重ねる。"""
+    books = library_mod.scan_library(cfg)
+    by_name: dict[str, dict] = {b["name"]: b for b in books}
+    for j in manager.list_jobs():
+        name = Path(j["filename"]).stem
+        book = by_name.get(name)
+        if book is None:
+            book = {
+                "name": name, "out_dir": str(cfg.out_dir / name), "has_ir": False,
+                "stages": {"ocr": "none", "layout": "none", "render": "none"},
+                "ai": {f: {"done": False, "jpy": None, "at": None} for f in estimate_mod.FEATURES},
+                "source": "job",
+            }
+            by_name[name] = book
+        book["job"] = j  # percent/step/status/error/traceback/log_path/job_id/pending
+    # 実行中・待機を上に、その後は名前順。
+    order = {"processing": 0, "queued": 1, "error": 2}
+    return sorted(
+        by_name.values(),
+        key=lambda b: (order.get((b.get("job") or {}).get("status"), 3), b["name"]),
+    )
+
+
+@app.get("/api/library")
+def library(out_dir: str = "") -> list[dict]:
+    return _merged_library(_library_cfg(out_dir))
+
+
+@app.post("/api/estimate")
+async def estimate(request: Request) -> dict:
+    """1冊のAI各処理の概算（¥）を返す。ir.json が無ければ applicable=false。"""
+    data = await request.json()
+    name = (data.get("book") or "").strip()
+    cfg = _library_cfg(data.get("out_dir", ""))
+    ir_path = cfg.work_dir / name / "ir.json"
+    if not name or not ir_path.exists():
+        return {"ok": False, "error": "中間データ(ir.json)がありません", "estimates": {}}
+    doc = Document.load(ir_path)
+    return {"ok": True, "estimates": estimate_mod.estimate_all(doc, cfg)}
+
+
+@app.post("/api/postprocess")
+async def postprocess(request: Request) -> dict:
+    """既存書籍に選んだAI処理を後付けする（ジョブとして実行）。"""
+    data = await request.json()
+    name = (data.get("book") or "").strip()
+    features = [f for f in (data.get("features") or []) if f in estimate_mod.FEATURES]
+    if not name or not features:
+        return {"ok": False, "error": "書籍または処理が指定されていません"}
+    cfg = _library_cfg(data.get("out_dir", ""))
+    # APIキー: リクエスト → 保存設定 の順。
+    key = (data.get("llm_api_key") or "").strip() or _saved_api_key()
+    if key:
+        cfg.structure_llm.api_key = key
+    cfg.structure_llm.enabled = True
+    job_id = manager.enqueue(
+        filename=name, path=name, output_dir=str(cfg.out_dir / name),
+        meta={"cfg": cfg, "kind": "postprocess", "name": name, "features": features},
+    )
+    return {"ok": True, "job_id": job_id}
+
+
+@app.post("/api/retry")
+async def retry(request: Request) -> dict:
+    """失敗した通常変換を、控えておいた元PDFから再実行する。"""
+    data = await request.json()
+    name = (data.get("book") or "").strip()
+    cfg = _library_cfg(data.get("out_dir", ""))
+    src = library_mod.load_status(cfg, name).get("source_pdf", "")
+    if not src or not Path(src).exists():
+        return {"ok": False, "error": "元PDFが見つかりません。もう一度ドロップしてください。"}
+    job_id = manager.enqueue(
+        filename=f"{name}.pdf", path=src, output_dir=str(cfg.out_dir / name),
+        meta={"cfg": cfg, "skip_existing": False, "kind": "convert"},
+    )
+    return {"ok": True, "job_id": job_id}
 
 
 @app.get("/api/jobs")
@@ -241,14 +353,22 @@ def move_job(job_id: str, direction: str = "up") -> dict:
 
 
 # ---- 設定の保存/読み込み（API キー等のローカル保持。任意） -----------------
-@app.get("/api/settings")
-def get_settings() -> dict:
+def _saved_settings() -> dict:
     if SETTINGS_PATH.exists():
         try:
             return json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             return {}
     return {}
+
+
+def _saved_api_key() -> str:
+    return (_saved_settings().get("llm_api_key") or "").strip()
+
+
+@app.get("/api/settings")
+def get_settings() -> dict:
+    return _saved_settings()
 
 
 @app.post("/api/settings")

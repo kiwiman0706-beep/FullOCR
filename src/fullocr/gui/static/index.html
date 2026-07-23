@@ -13,542 +13,504 @@
   *{box-sizing:border-box;}
   body{
     margin:0; background:var(--bg); color:var(--ink);
-    font-family:-apple-system,"Hiragino Sans","Yu Gothic",system-ui,sans-serif;
-    line-height:1.6;
+    font-family:-apple-system,"Hiragino Sans","Yu Gothic",system-ui,sans-serif; line-height:1.6;
   }
-  .wrap{max-width:720px; margin:0 auto; padding:32px 20px 60px;}
-  h1{font-size:22px; margin:0 0 4px; font-weight:700;}
-  h1 .version{font-size:13px; font-weight:600; color:var(--accent); vertical-align:middle; margin-left:6px;}
-  .sub{color:var(--ink-soft); font-size:13px; margin:0 0 28px;}
+  .wrap{max-width:940px; margin:0 auto; padding:24px 20px 60px;}
+  .topbar{display:flex; align-items:baseline; justify-content:space-between; gap:12px;}
+  h1{font-size:22px; margin:0; font-weight:700;}
+  h1 .version{font-size:13px; font-weight:600; color:var(--accent); margin-left:6px;}
+  .sub{color:var(--ink-soft); font-size:13px; margin:4px 0 20px;}
+  .btn{padding:8px 13px; font-size:13px; white-space:nowrap; cursor:pointer;
+    border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--ink);}
+  .btn:hover{background:var(--accent-soft);}
+  .btn.small{padding:4px 9px; font-size:12px;}
 
   .dropzone{
     border:2px dashed var(--line); border-radius:10px; background:var(--panel);
-    padding:40px 20px; text-align:center; cursor:pointer; transition:border-color .15s, background .15s;
+    padding:26px 20px; text-align:center; cursor:pointer; transition:border-color .15s, background .15s;
   }
   .dropzone.drag{border-color:var(--accent); background:var(--accent-soft);}
-  .dropzone .icon{font-size:32px; margin-bottom:8px;}
+  .dropzone .icon{font-size:28px;}
   .dropzone .main{font-size:14px; font-weight:600;}
-  .dropzone .hint{font-size:12px; color:var(--ink-soft); margin-top:4px;}
+  .dropzone .hint{font-size:12px; color:var(--ink-soft); margin-top:2px;}
   input[type=file]{display:none;}
 
-  .filelist{margin-top:16px; display:flex; flex-direction:column; gap:6px;}
-  .file-row{
-    display:flex; align-items:center; justify-content:space-between; gap:10px;
-    background:var(--panel); border:1px solid var(--line); border-radius:6px;
-    padding:8px 12px; font-size:13px;
-  }
-  .file-row .name{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .file-row .rm{
-    border:none; background:none; color:var(--ink-soft); cursor:pointer; font-size:16px; line-height:1;
-    padding:2px 4px;
-  }
-  .file-row .rm:hover{color:var(--bad);}
+  .filelist{margin-top:10px; display:flex; flex-wrap:wrap; gap:6px;}
+  .chip{display:flex; align-items:center; gap:6px; background:var(--panel); border:1px solid var(--line);
+    border-radius:99px; padding:4px 10px; font-size:12px; max-width:100%;}
+  .chip .nm{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:240px;}
+  .chip .rm{border:none; background:none; color:var(--ink-soft); cursor:pointer; font-size:15px; line-height:1;}
+  .chip .rm:hover{color:var(--bad);}
 
-  .card{margin-top:24px; background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px 18px;}
-  .card h2{font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); margin:0 0 12px; font-weight:600;}
-  .opt-row{display:flex; align-items:flex-start; gap:10px; padding:7px 0;}
-  .opt-row input[type=checkbox]{margin-top:3px;}
-  .opt-row label{font-size:14px; cursor:pointer;}
-  .opt-row .desc{font-size:12px; color:var(--ink-soft); margin-top:2px;}
-
-  .outdir-row{display:flex; gap:8px;}
-  .outdir-row input{
-    flex:1; padding:9px 12px; font-size:13px; border:1px solid var(--line);
-    border-radius:6px; background:var(--bg); color:var(--ink); min-width:0;
-  }
-  .field{width:100%; padding:8px 10px; font-size:13px; border:1px solid var(--line);
-    border-radius:6px; background:var(--bg); color:var(--ink); margin-top:8px;}
-  .btn{padding:9px 14px; font-size:13px; white-space:nowrap; cursor:pointer;
-    border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink);}
-  .btn:hover{background:var(--accent-soft);}
-  .desc{font-size:12px; color:var(--ink-soft); margin-top:8px;}
-  .remember-row{display:flex; align-items:center; gap:8px; margin-top:8px; font-size:13px; color:var(--ink-soft);}
-
-  button.primary{
-    margin-top:20px; width:100%; padding:12px; font-size:15px; font-weight:600;
-    background:var(--accent); color:#fff; border:none; border-radius:8px; cursor:pointer;
-  }
+  .row{display:flex; gap:8px; align-items:center; margin-top:12px; flex-wrap:wrap;}
+  .row input.path{flex:1; min-width:180px; padding:8px 11px; font-size:13px; border:1px solid var(--line);
+    border-radius:6px; background:var(--panel); color:var(--ink);}
+  .grow{flex:1;}
+  .muted{color:var(--ink-soft); font-size:12px;}
+  button.primary{padding:10px 18px; font-size:14px; font-weight:600; background:var(--accent);
+    color:#fff; border:none; border-radius:8px; cursor:pointer;}
   button.primary:disabled{background:var(--line); color:var(--ink-soft); cursor:not-allowed;}
   button.primary:not(:disabled):hover{filter:brightness(1.08);}
 
-  .jobs{margin-top:28px;}
-  .jobs h2{font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); margin:0 0 12px; font-weight:600;}
-  .job-controls{display:flex; gap:8px; margin-bottom:10px;}
-  .job-controls button{
-    padding:7px 14px; font-size:13px; cursor:pointer; border:1px solid var(--line);
-    border-radius:6px; background:var(--bg); color:var(--ink);
-  }
-  .job-controls button:hover{background:var(--accent-soft);}
-  .job-controls button.paused{background:var(--warn); color:#fff; border-color:var(--warn);}
+  .banner{margin-top:14px; padding:10px 14px; border-radius:6px; font-size:13px;
+    background:#f6dcdc; color:var(--bad); display:none;}
+
+  .section-head{display:flex; align-items:center; gap:12px; margin:26px 0 10px;}
+  .section-head h2{font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); margin:0; font-weight:600;}
+  .section-head .sp{flex:1;}
+  .ctl{padding:6px 12px; font-size:13px; cursor:pointer; border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--ink);}
+  .ctl:hover{background:var(--accent-soft);}
+  .ctl.paused{background:var(--warn); color:#fff; border-color:var(--warn);}
+
   table{width:100%; border-collapse:collapse; font-size:13px; background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden;}
-  th,td{padding:9px 12px; text-align:left; border-bottom:1px solid var(--line); vertical-align:top;}
-  tr:last-child td{border-bottom:none;}
-  th{font-size:11px; text-transform:uppercase; color:var(--ink-soft); font-weight:500;}
-  .status-pill{display:inline-block; padding:2px 8px; border-radius:99px; font-size:11px; font-weight:600;}
-  .status-queued{background:#eee; color:var(--ink-soft);}
-  .status-processing{background:var(--accent-soft); color:var(--accent);}
-  .status-done{background:#e2ede7; color:var(--good);}
-  .status-skipped{background:#eee; color:var(--ink-soft);}
-  .status-error{background:#f6dcdc; color:var(--bad); cursor:pointer;}
-  .status-error::after{content:" ▸"; font-size:10px;}
-  .status-error.open::after{content:" ▾";}
-  .status-canceled{background:#eee; color:var(--ink-soft);}
-  .err-detail td{background:#fbf1f1; border-top:none;}
-  .err-detail .err-msg{color:var(--bad); font-weight:600; font-size:12px; margin-bottom:6px;}
-  .err-detail pre{
-    margin:0; padding:10px; background:#2b2622; color:#f0e9df; border-radius:6px;
-    font-size:11px; line-height:1.45; overflow-x:auto; white-space:pre; max-height:320px;
-  }
-  .err-detail .err-log{font-size:11px; color:var(--ink-soft); margin-top:6px; word-break:break-all;}
-  .err-detail .err-log .open-link{color:var(--accent);}
+  th,td{padding:8px 10px; text-align:left; border-bottom:1px solid var(--line); vertical-align:middle;}
+  thead th{font-size:11px; text-transform:uppercase; color:var(--ink-soft); font-weight:500;}
+  tbody tr:last-child td{border-bottom:none;}
+  .col-x{width:22px; text-align:center; color:var(--ink-soft); cursor:pointer; user-select:none;}
+  .col-st{width:52px; text-align:center;}
+  .bookname{font-weight:600;}
+  .openlink{color:var(--accent); cursor:pointer; text-decoration:none; font-size:12px; margin-left:6px;}
+  .openlink:hover{text-decoration:underline;}
+  .stg-done{color:var(--good); font-weight:700;}
+  .stg-none{color:var(--line);}
+  .stg-run{color:var(--accent);}
+  .stg-err{color:var(--bad); font-weight:700;}
 
-  .progress-wrap{margin-top:6px;}
-  .progress-bar{
-    height:6px; background:var(--line); border-radius:99px; overflow:hidden; margin-top:5px;
-  }
-  .progress-bar > span{
-    display:block; height:100%; width:0; background:var(--accent);
-    border-radius:99px; transition:width .4s ease;
-  }
-  .progress-meta{display:flex; justify-content:space-between; gap:8px; font-size:11px; color:var(--ink-soft);}
-  .progress-meta .step{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .progress-meta .pct{font-variant-numeric:tabular-nums; font-weight:600; color:var(--accent);}
+  .aicell{display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center;}
+  .feat{display:inline-flex; align-items:center; gap:4px; font-size:12px; white-space:nowrap;}
+  .feat input{margin:0;}
+  .feat .yen{color:var(--warn); font-variant-numeric:tabular-nums;}
+  .feat .done{color:var(--good);}
+  .feat.na{opacity:.45;}
+  .aicell .go{margin-left:2px;}
 
-  .console-card{margin-top:16px;}
-  .console-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
-  .console-head h2{font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); margin:0; font-weight:600;}
-  .console-head button{
-    border:1px solid var(--line); background:var(--bg); color:var(--ink-soft);
-    border-radius:5px; cursor:pointer; font-size:11px; padding:3px 8px;
-  }
-  .console{
-    margin:0; padding:12px 14px; background:#2b2622; color:#e9e1d6; border-radius:8px;
-    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; font-size:12px; line-height:1.55;
-    height:200px; overflow-y:auto; white-space:pre-wrap; word-break:break-word;
-    user-select:text; -webkit-user-select:text; cursor:text;
-  }
+  .subrow td{background:#faf8f3; border-top:none;}
+  .progress-bar{height:6px; background:var(--line); border-radius:99px; overflow:hidden; max-width:320px;}
+  .progress-bar>span{display:block; height:100%; background:var(--accent); border-radius:99px; transition:width .4s ease;}
+  .progress-meta{display:flex; gap:10px; font-size:12px; color:var(--ink-soft); margin-bottom:4px;}
+  .progress-meta .pct{color:var(--accent); font-weight:600; font-variant-numeric:tabular-nums;}
+  .err-msg{color:var(--bad); font-weight:600; font-size:12px;}
+  .detail{font-size:12px; color:var(--ink-soft);}
+  .detail pre{margin:6px 0 0; padding:10px; background:#2b2622; color:#f0e9df; border-radius:6px;
+    font-size:11px; line-height:1.45; overflow-x:auto; white-space:pre; max-height:260px;}
+  .detail .kv{margin:2px 0;}
+  .legend{font-size:11px; color:var(--ink-soft); margin-top:6px;}
+
+  .console-head{display:flex; align-items:center; gap:8px;}
+  .console-head .sp{flex:1;}
+  .console{margin:0; padding:12px 14px; background:#2b2622; color:#e9e1d6; border-radius:8px;
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; font-size:12px; line-height:1.5;
+    height:180px; overflow-y:auto; white-space:pre-wrap; word-break:break-word; user-select:text; cursor:text;}
   .console .ln{display:block;}
-  .console .ln .ts{color:#8f8578;}
-  .console .ln .fn{color:#7fb3a6;}
-  .console .ln .pc{color:#d8a657;}
-  .console .ln.stage{color:#a9d3c4;}                 /* 段階の節目は少し明るく */
-  .console .ln.engine{color:#b3aa9c;}                /* エンジンの生ログは控えめ */
-  .console-head .toggles{display:flex; gap:6px; align-items:center;}
-  .outpath{font-size:11px; color:var(--ink-soft); word-break:break-all;}
-  .open-link{color:var(--accent); cursor:pointer; text-decoration:underline;}
-  .rowbtns{display:flex; gap:4px;}
-  .rowbtns button{
-    border:1px solid var(--line); background:var(--bg); color:var(--ink-soft);
-    border-radius:5px; cursor:pointer; font-size:12px; line-height:1; padding:3px 7px;
-  }
-  .rowbtns button:hover{background:var(--accent-soft); color:var(--accent);}
+  .console .ln .ts{color:#8f8578;} .console .ln .fn{color:#7fb3a6;} .console .ln .pc{color:#d8a657;}
+  .console .ln.stage{color:#a9d3c4;} .console .ln.engine{color:#b3aa9c;}
 
-  .banner{
-    margin-top:16px; padding:10px 14px; border-radius:6px; font-size:13px;
-    background:#f6dcdc; color:var(--bad); display:none;
-  }
+  /* 設定ドロワー */
+  .overlay{position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; z-index:10;}
+  .overlay.open{display:block;}
+  .drawer{position:fixed; top:0; right:0; height:100%; width:min(420px,92vw); background:var(--bg);
+    box-shadow:-6px 0 24px rgba(0,0,0,.2); padding:20px; overflow-y:auto; z-index:11;
+    transform:translateX(100%); transition:transform .2s ease;}
+  .drawer.open{transform:none;}
+  .drawer h2{font-size:16px; margin:0 0 4px;}
+  .drawer h3{font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); margin:18px 0 6px;}
+  .drawer .close{position:absolute; top:16px; right:16px;}
+  .opt{display:flex; gap:9px; padding:6px 0; align-items:flex-start;}
+  .opt input{margin-top:3px;}
+  .opt label{font-size:14px; cursor:pointer;}
+  .opt .d{font-size:12px; color:var(--ink-soft);}
+  .field{width:100%; padding:8px 10px; font-size:13px; border:1px solid var(--line); border-radius:6px;
+    background:var(--panel); color:var(--ink); margin-top:6px;}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>FullOCR <span id="appVersion" class="version"></span></h1>
-  <p class="sub">自炊PDFを構造化Markdownに変換します。複数ファイルをまとめてドラッグ&ドロップできます。</p>
+  <div class="topbar">
+    <h1>FullOCR <span id="appVersion" class="version"></span></h1>
+    <button class="btn" id="openSettings">⚙ 変換設定</button>
+  </div>
+  <p class="sub">自炊PDFを挿絵・目次つきの構造化Markdownに変換します。複数まとめてドラッグ&ドロップ可。</p>
 
   <div class="dropzone" id="dropzone">
     <div class="icon">📄</div>
     <div class="main">ここにPDFをドラッグ&ドロップ</div>
-    <div class="hint">またはクリックしてファイルを選択（複数選択可）</div>
+    <div class="hint">またはクリックして選択（複数可）</div>
     <input type="file" id="fileInput" accept="application/pdf" multiple />
   </div>
-
   <div class="filelist" id="fileList"></div>
 
-  <div class="card">
-    <h2>保存先フォルダ</h2>
-    <div class="outdir-row">
-      <input type="text" id="outDir" placeholder="未指定なら アプリと同じ場所の out フォルダ に保存" readonly />
-      <button type="button" class="btn" id="browseBtn">参照…</button>
-      <button type="button" class="btn" id="clearOutBtn">既定に戻す</button>
-    </div>
-    <div class="desc">Obsidianの保管庫フォルダを選べば、変換結果を直接そこに書き出せます。</div>
+  <div class="row">
+    <input type="text" class="path" id="outDir" placeholder="保存先（未指定なら ~/FullOCR/out）— Obsidian保管庫を選べます" readonly />
+    <button type="button" class="btn" id="browseBtn">参照…</button>
+    <button type="button" class="btn" id="clearOutBtn">既定</button>
   </div>
-
-  <div class="card">
-    <h2>オプション</h2>
-    <div class="opt-row">
-      <input type="checkbox" id="opt-headers" checked />
-      <div><label for="opt-headers">ページの柱・ノンブルを本文から除外する</label>
-        <div class="desc">推奨。ヘッダー・フッターとして検出された行を本文に含めません。</div></div>
-    </div>
-    <div class="opt-row">
-      <input type="checkbox" id="opt-wiklinks" checked />
-      <div><label for="opt-wiklinks">Obsidianのwikilink形式で画像を埋め込む</label>
-        <div class="desc">オフにすると通常のMarkdown画像記法（![alt](path)）になります。</div></div>
-    </div>
-    <div class="opt-row">
-      <input type="checkbox" id="opt-frontmatter" checked />
-      <div><label for="opt-frontmatter">front-matterを付ける</label>
-        <div class="desc">タイトル・出典・ページ数などをファイル先頭に記載します。</div></div>
-    </div>
-    <div class="opt-row">
-      <input type="checkbox" id="opt-split" />
-      <div><label for="opt-split">章ごとにファイルを分割する（実験的）</label>
-        <div class="desc">本のデザインによっては見出し検出が不安定なため、過剰に分割されることがあります。</div></div>
-    </div>
-    <div class="opt-row">
-      <input type="checkbox" id="opt-skip" checked />
-      <div><label for="opt-skip">変換済みのファイルはスキップする</label>
-        <div class="desc">同じ本を再度ドロップしても、既に出力があれば再変換しません。</div></div>
-    </div>
-    <div class="opt-row">
-      <input type="checkbox" id="opt-cleanup" checked />
-      <div><label for="opt-cleanup">本文の改行・ページ境界を自動整形する（無料）</label>
-        <div class="desc">ページ境界でぶつ切りになった段落の連結や、ノンブル残骸の除去をルールで行います（AI不要）。</div></div>
-    </div>
-    <div class="opt-row">
-      <input type="checkbox" id="opt-llm" />
-      <div style="flex:1;"><label for="opt-llm">AIで見出し構造を整える（Gemini・要APIキー）</label>
-        <div class="desc">見出しの階層(H1〜H6)をAIが本の目次に沿って付け直し、アウトライン表示を本のとおりのツリーにします。構成の評価(_structure_review.md)も出力します。</div>
-        <div class="opt-row" style="padding-left:6px;">
-          <input type="checkbox" id="opt-llm-anomaly" />
-          <div><label for="opt-llm-anomaly">本文の異常チェック（変な改行・ページ飛びを検出）</label>
-            <div class="desc">レポートに追記。安価（境界のみ点検）。</div></div>
-        </div>
-        <div class="opt-row" style="padding-left:6px;">
-          <input type="checkbox" id="opt-llm-rewrite" />
-          <div><label for="opt-llm-rewrite">本文をAIでリライト整形する（構造・画像は保持）</label>
-            <div class="desc">OCR由来の改行・誤字を段落ごとに整えます。出力トークンを使うぶん割高（数十円/冊）。</div></div>
-        </div>
-        <div class="opt-row" style="padding-left:6px;">
-          <input type="checkbox" id="opt-llm-alt" />
-          <div><label for="opt-llm-alt">挿絵の説明文（代替テキスト）を生成する</label>
-            <div class="desc">図をAIが説明し、画像の下に添えます（スマホでの検索に有効）。画像トークンを消費。</div></div>
-        </div>
-        <input type="password" class="field" id="llmKey" placeholder="Gemini APIキー（環境変数 GEMINI_API_KEY があれば空欄でOK）" />
-        <div class="remember-row">
-          <input type="checkbox" id="opt-remember" />
-          <label for="opt-remember">このキー・設定をこのPCに記憶する（ローカルのみ・平文保存）</label>
-        </div>
-      </div>
-    </div>
+  <div class="row">
+    <span class="muted" id="stageInfo">待機に追加: 0冊</span>
+    <span class="grow"></span>
+    <button class="primary" id="startBtn" disabled>変換開始 ▶</button>
   </div>
 
   <div class="banner" id="banner"></div>
 
-  <button class="primary" id="startBtn" disabled>変換開始</button>
-
-  <div class="jobs" id="jobsSection" style="display:none;">
-    <h2>進捗</h2>
-    <div class="job-controls">
-      <button type="button" id="pauseBtn">一時停止</button>
-      <button type="button" id="stopBtn">中止</button>
-    </div>
-    <table>
-      <thead><tr><th>ファイル</th><th>状態</th><th>出力先</th><th>操作</th></tr></thead>
-      <tbody id="jobsBody"></tbody>
-    </table>
-
-    <div class="console-card">
-      <div class="console-head">
-        <h2>ログ</h2>
-        <div class="toggles">
-          <button type="button" id="copyLogBtn" title="表示中のログを全部コピー">コピー</button>
-          <button type="button" id="engineLogBtn" title="NDLOCR / Docling の生の出力を表示">エンジン詳細: ON</button>
-          <button type="button" id="autoscrollBtn" title="最新行に自動で追従">自動スクロール: ON</button>
-        </div>
-      </div>
-      <div class="console" id="console"></div>
-    </div>
+  <div class="section-head">
+    <h2>ライブラリ <span id="libCount" class="muted"></span></h2>
+    <span class="sp"></span>
+    <button type="button" class="ctl" id="pauseBtn">一時停止</button>
+    <button type="button" class="ctl" id="stopBtn">中止</button>
   </div>
+  <table>
+    <thead><tr>
+      <th class="col-x"></th><th>書籍</th>
+      <th class="col-st">OCR</th><th class="col-st">レイ</th><th class="col-st">生成</th>
+      <th>AI処理（☑選択 → 概算 → 実行）</th>
+    </tr></thead>
+    <tbody id="libBody"></tbody>
+  </table>
+  <div class="legend">段階: ✓済 / – 未 / ⚠失敗 　　AI: □未 ✅済 　「概算」で¥表示（課金なし）／「実行」で選択処理を後付け（OCR再実行なし）</div>
+
+  <div class="section-head">
+    <h2>ログ</h2>
+    <span class="sp"></span>
+    <button type="button" class="ctl" id="copyLogBtn">📋コピー</button>
+    <button type="button" class="ctl" id="engineLogBtn">エンジン詳細: ON</button>
+    <button type="button" class="ctl" id="autoscrollBtn">自動スクロール: ON</button>
+  </div>
+  <div class="console" id="console"></div>
+</div>
+
+<!-- 設定ドロワー -->
+<div class="overlay" id="overlay"></div>
+<div class="drawer" id="drawer">
+  <button class="btn close" id="closeSettings">× 閉じる</button>
+  <h2>変換設定</h2>
+  <div class="muted">新しく変換する本に適用する既定です。過去の本へのAIは表の「実行」から。</div>
+
+  <h3>出力</h3>
+  <div class="opt"><input type="checkbox" id="opt-headers" checked><div><label for="opt-headers">柱・ノンブルを本文から除外</label><div class="d">推奨。ヘッダー/フッター行を本文に含めません。</div></div></div>
+  <div class="opt"><input type="checkbox" id="opt-wiklinks" checked><div><label for="opt-wiklinks">Obsidian wikilink で画像埋め込み</label><div class="d">オフで通常のMarkdown画像記法。</div></div></div>
+  <div class="opt"><input type="checkbox" id="opt-frontmatter" checked><div><label for="opt-frontmatter">front-matter を付ける</label><div class="d">タイトル・出典・ページ数を先頭に。</div></div></div>
+  <div class="opt"><input type="checkbox" id="opt-split"><div><label for="opt-split">章ごとにファイル分割（実験的）</label><div class="d">見出し検出が不安定な本では過剰分割しがち。</div></div></div>
+  <div class="opt"><input type="checkbox" id="opt-skip" checked><div><label for="opt-skip">変換済みはスキップ</label><div class="d">同じ本を再ドロップしても既存があれば再変換しない。</div></div></div>
+  <div class="opt"><input type="checkbox" id="opt-cleanup" checked><div><label for="opt-cleanup">本文の改行・ページ境界を自動整形（無料）</label><div class="d">ぶつ切り段落の連結・ノンブル残骸除去（AI不要）。</div></div></div>
+
+  <h3>AI（Gemini）— 新規変換で既定ONにする処理</h3>
+  <div class="opt"><input type="checkbox" id="opt-llm"><div><label for="opt-llm">見出し構造をAIで整える</label><div class="d">H1〜H6の階層を目次に沿って付け直し、構成レビューも出力。</div></div></div>
+  <div class="opt"><input type="checkbox" id="opt-llm-rewrite"><div><label for="opt-llm-rewrite">本文をAIでリライト整形</label><div class="d">OCR由来の改行・誤字を整える。出力が多く割高。</div></div></div>
+  <div class="opt"><input type="checkbox" id="opt-llm-alt"><div><label for="opt-llm-alt">挿絵の代替テキスト生成</label><div class="d">図をAIが説明。スマホ検索に有効。</div></div></div>
+  <div class="opt"><input type="checkbox" id="opt-llm-anomaly"><div><label for="opt-llm-anomaly">本文の異常チェック</label><div class="d">変な改行・ページ飛びを検出しレポートに追記。</div></div></div>
+  <input type="password" class="field" id="llmKey" placeholder="Gemini APIキー（環境変数 GEMINI_API_KEY があれば空欄可）" />
+  <div class="opt" style="margin-top:6px;"><input type="checkbox" id="opt-remember"><label for="opt-remember">このキー・設定をこのPCに記憶（ローカルのみ・平文）</label></div>
+  <div class="row"><span class="grow"></span><button class="primary" id="saveSettings">保存</button></div>
 </div>
 
 <script>
 const $ = (id) => document.getElementById(id);
-const dropzone = $('dropzone'), fileInput = $('fileInput'), fileListEl = $('fileList');
-const startBtn = $('startBtn'), banner = $('banner');
-const jobsSection = $('jobsSection'), jobsBody = $('jobsBody');
-const outDirEl = $('outDir'), browseBtn = $('browseBtn'), clearOutBtn = $('clearOutBtn');
-const pauseBtn = $('pauseBtn'), stopBtn = $('stopBtn');
-const llmKeyEl = $('llmKey'), optLlm = $('opt-llm'), optRemember = $('opt-remember');
+function esc(s){ const d=document.createElement('div'); d.textContent = s==null?'':String(s); return d.innerHTML; }
+function nativeApi(){ return (window.pywebview && window.pywebview.api) ? window.pywebview.api : null; }
+function showBanner(msg){ const b=$('banner'); b.textContent=msg||''; b.style.display=msg?'block':'none'; }
+function openFolder(p){ const a=nativeApi(); if(a) a.open_path(p); }
+
+const AI_FEATURES = [
+  {key:'structure', label:'構造'},
+  {key:'rewrite',   label:'整形'},
+  {key:'figure_alt',label:'図代替'},
+  {key:'anomaly',   label:'異常'},
+];
+const OPT_IDS = ['opt-headers','opt-wiklinks','opt-frontmatter','opt-split','opt-skip','opt-cleanup',
+                 'opt-llm','opt-llm-rewrite','opt-llm-alt','opt-llm-anomaly'];
 
 let pendingFiles = [];
 let paused = false;
+// ポーリングで表が作り直されても壊れないよう、UI状態はキャッシュに退避。
+const estCache = {};      // name -> {feature: {jpy, applicable, done}}
+const checkedCache = {};  // name -> Set(feature)
+const expanded = new Set();
 
-function esc(s){ const d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
-function nativeApi(){ return (window.pywebview && window.pywebview.api) ? window.pywebview.api : null; }
-function showBanner(msg){ banner.textContent = msg; banner.style.display = msg ? 'block' : 'none'; }
-
-// ---- 保存済み設定の読み込み（APIキー・オプション） ----
+// ---- 起動時: バージョン・保存設定の読み込み ----
 window.addEventListener('DOMContentLoaded', async () => {
-  try {
-    const v = await (await fetch('/api/version')).json();
-    if (v && v.version) $('appVersion').textContent = 'v' + v.version;
-  } catch (e) { /* バージョン取得失敗は無視 */ }
+  try { const v = await (await fetch('/api/version')).json(); if(v&&v.version) $('appVersion').textContent='v'+v.version; } catch(e){}
   try {
     const s = await (await fetch('/api/settings')).json();
     if (s && s.remember) {
-      optRemember.checked = true;
-      if (s.llm_api_key) llmKeyEl.value = s.llm_api_key;
-      if (s.opt) {
-        for (const [id, val] of Object.entries(s.opt)) {
-          const el = $(id); if (el && el.type === 'checkbox') el.checked = !!val;
-        }
-      }
+      $('opt-remember').checked = true;
+      if (s.llm_api_key) $('llmKey').value = s.llm_api_key;
+      if (s.out_dir) $('outDir').value = s.out_dir;
+      if (s.opt) for (const [id,val] of Object.entries(s.opt)) { const el=$(id); if(el&&el.type==='checkbox') el.checked=!!val; }
     }
-  } catch (e) { /* 設定なし */ }
+  } catch(e){}
+  ensurePolling();
 });
 
-// ---- フォルダ選択（ネイティブ） ----
-browseBtn.addEventListener('click', async () => {
-  const api = nativeApi();
-  if (!api) { showBanner('フォルダ選択はデスクトップアプリでのみ利用できます。'); return; }
-  const path = await api.pick_folder();
-  if (path) outDirEl.value = path;
+// ---- 設定ドロワー ----
+function openDrawer(){ $('overlay').classList.add('open'); $('drawer').classList.add('open'); }
+function closeDrawer(){ $('overlay').classList.remove('open'); $('drawer').classList.remove('open'); }
+$('openSettings').addEventListener('click', openDrawer);
+$('closeSettings').addEventListener('click', closeDrawer);
+$('overlay').addEventListener('click', closeDrawer);
+$('saveSettings').addEventListener('click', async () => { await persistSettings(); closeDrawer(); });
+
+function currentOpts(){
+  const o = {}; for (const id of OPT_IDS) o[id] = $(id).checked; return o;
+}
+async function persistSettings(){
+  const body = {
+    remember: $('opt-remember').checked,
+    llm_api_key: $('llmKey').value || '',
+    out_dir: $('outDir').value || '',
+    opt: currentOpts(),
+  };
+  try { await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); } catch(e){}
+}
+
+// ---- 保存先フォルダ ----
+$('browseBtn').addEventListener('click', async () => {
+  const a=nativeApi(); if(!a){ showBanner('フォルダ選択はデスクトップアプリでのみ利用できます。'); return; }
+  const p = await a.pick_folder(); if(p){ $('outDir').value = p; persistSettings(); pollAll(); }
 });
-clearOutBtn.addEventListener('click', () => { outDirEl.value = ''; });
-function openFolder(path){ const api = nativeApi(); if (api) api.open_path(path); }
+$('clearOutBtn').addEventListener('click', () => { $('outDir').value=''; persistSettings(); pollAll(); });
 
 // ---- ファイル選択 ----
 function renderFileList(){
-  fileListEl.innerHTML = '';
-  pendingFiles.forEach((f, i) => {
-    const row = document.createElement('div');
-    row.className = 'file-row';
-    row.innerHTML = `<span class="name">${esc(f.name)}</span>`;
-    const rm = document.createElement('button');
-    rm.className = 'rm'; rm.textContent = '×';
-    rm.onclick = () => { pendingFiles.splice(i, 1); renderFileList(); };
-    row.appendChild(rm);
-    fileListEl.appendChild(row);
+  const el=$('fileList'); el.innerHTML='';
+  pendingFiles.forEach((f,i)=>{
+    const c=document.createElement('div'); c.className='chip';
+    c.innerHTML = `<span class="nm">${esc(f.name)}</span>`;
+    const rm=document.createElement('button'); rm.className='rm'; rm.textContent='×';
+    rm.onclick=()=>{ pendingFiles.splice(i,1); renderFileList(); };
+    c.appendChild(rm); el.appendChild(c);
   });
-  startBtn.disabled = pendingFiles.length === 0;
+  $('stageInfo').textContent = '待機に追加: ' + pendingFiles.length + '冊';
+  $('startBtn').disabled = pendingFiles.length===0;
 }
 function addFiles(arr){
-  for (const f of arr) {
-    if (f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf')) pendingFiles.push(f);
-  }
+  for(const f of arr) if(f.type==='application/pdf'||f.name.toLowerCase().endsWith('.pdf')) pendingFiles.push(f);
   renderFileList();
 }
-dropzone.addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', (e) => addFiles(Array.from(e.target.files)));
-['dragenter','dragover'].forEach(evt => dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add('drag'); }));
-['dragleave','drop'].forEach(evt => dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove('drag'); }));
-dropzone.addEventListener('drop', (e) => addFiles(Array.from(e.dataTransfer.files)));
-
-// ---- 進捗ポーリング＆ジョブ操作 ----
-function statusInfo(raw){
-  if (raw === 'done') return { cls:'status-done', label:'完了' };
-  if (raw === 'skipped') return { cls:'status-skipped', label:'スキップ' };
-  if (raw === 'canceled') return { cls:'status-canceled', label:'キャンセル' };
-  if (raw === 'queued') return { cls:'status-queued', label:'待機中' };
-  if (raw.startsWith('error')) return { cls:'status-error', label:'エラー' };
-  if (raw === 'processing') return { cls:'status-processing', label:'変換中…' };
-  return { cls:'status-queued', label: raw };
-}
-
-async function jobAction(url){ await fetch(url, { method:'POST' }); pollJobs(); }
-
-function renderJobs(jobs){
-  jobsBody.innerHTML = '';
-  for (const j of jobs) {
-    const info = statusInfo(j.status);
-    const tr = document.createElement('tr');
-
-    const tdName = document.createElement('td'); tdName.textContent = j.filename;
-    const tdStat = document.createElement('td');
-    const pill = document.createElement('span');
-    pill.className = `status-pill ${info.cls}`;
-    pill.textContent = info.label;
-    tdStat.appendChild(pill);
-    // 処理中はプログレスバー＋段階ラベル＋％を表示。
-    if (j.status === 'processing') {
-      const pw = document.createElement('div'); pw.className = 'progress-wrap';
-      const meta = document.createElement('div'); meta.className = 'progress-meta';
-      const stepEl = document.createElement('span'); stepEl.className = 'step'; stepEl.textContent = j.step || '処理中…';
-      const pctEl = document.createElement('span'); pctEl.className = 'pct'; pctEl.textContent = (j.percent || 0) + '%';
-      meta.append(stepEl, pctEl);
-      const bar = document.createElement('div'); bar.className = 'progress-bar';
-      const fill = document.createElement('span'); fill.style.width = (j.percent || 0) + '%';
-      bar.appendChild(fill);
-      pw.append(meta, bar);
-      tdStat.appendChild(pw);
-    }
-    const tdPath = document.createElement('td'); tdPath.className = 'outpath';
-    if (j.status === 'done' || j.status === 'skipped') {
-      const link = document.createElement('span');
-      link.className = 'open-link'; link.title = 'フォルダを開く';
-      link.textContent = '📂 ' + j.output_dir;
-      link.addEventListener('click', () => openFolder(j.output_dir));
-      tdPath.appendChild(link);
-    }
-    const tdOps = document.createElement('td');
-    if (j.pending) {
-      const box = document.createElement('div'); box.className = 'rowbtns';
-      const up = document.createElement('button'); up.textContent = '↑'; up.title = '上へ';
-      up.onclick = () => jobAction(`/api/jobs/${j.job_id}/move?direction=up`);
-      const dn = document.createElement('button'); dn.textContent = '↓'; dn.title = '下へ';
-      dn.onclick = () => jobAction(`/api/jobs/${j.job_id}/move?direction=down`);
-      const sk = document.createElement('button'); sk.textContent = 'スキップ';
-      sk.onclick = () => jobAction(`/api/jobs/${j.job_id}/skip`);
-      box.append(up, dn, sk);
-      tdOps.appendChild(box);
-    }
-    tr.append(tdName, tdStat, tdPath, tdOps);
-    jobsBody.appendChild(tr);
-
-    // エラー行はピルをクリックで詳細（メッセージ＋トレースバック＋ログの場所）を開閉。
-    if (j.status && j.status.startsWith('error')) {
-      const detail = document.createElement('tr');
-      detail.className = 'err-detail';
-      detail.style.display = 'none';
-      const cell = document.createElement('td'); cell.colSpan = 4;
-      const parts = [];
-      if (j.error) parts.push(`<div class="err-msg">${esc(j.error)}</div>`);
-      if (j.traceback) parts.push(`<pre>${esc(j.traceback)}</pre>`);
-      cell.innerHTML = parts.join('');
-      if (j.log_path) {
-        const logDiv = document.createElement('div'); logDiv.className = 'err-log';
-        logDiv.append(document.createTextNode('ログ: '));
-        const logLink = document.createElement('span');
-        logLink.className = 'open-link'; logLink.textContent = j.log_path;
-        logLink.title = 'ログのあるフォルダを開く';
-        logLink.addEventListener('click', () => openFolder(j.log_path));
-        logDiv.appendChild(logLink);
-        cell.appendChild(logDiv);
-      }
-      detail.appendChild(cell);
-      jobsBody.appendChild(detail);
-      pill.title = 'クリックでエラーの詳細を表示';
-      pill.addEventListener('click', () => {
-        const open = detail.style.display === 'none';
-        detail.style.display = open ? '' : 'none';
-        pill.classList.toggle('open', open);
-      });
-    }
-  }
-}
-
-const consoleEl = $('console'), autoscrollBtn = $('autoscrollBtn'), engineLogBtn = $('engineLogBtn'), copyLogBtn = $('copyLogBtn');
-let autoscroll = true, showEngine = true;
-let lastLog = [];
-
-function logAsText(){
-  return lastLog
-    .filter(e => showEngine || e.kind !== 'engine')
-    .map(e => {
-      const pct = (e.percent == null) ? '' : ` ${e.percent}%`;
-      return `${e.t}\t${e.file}\t${e.msg}${pct}`;
-    })
-    .join('\n');
-}
-copyLogBtn.addEventListener('click', async () => {
-  const text = logAsText();
-  let ok = false;
-  try {
-    await navigator.clipboard.writeText(text);
-    ok = true;
-  } catch (e) {
-    // 埋め込みブラウザで clipboard API が使えない場合のフォールバック。
-    try {
-      const ta = document.createElement('textarea');
-      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-      document.body.appendChild(ta); ta.select();
-      ok = document.execCommand('copy');
-      document.body.removeChild(ta);
-    } catch (e2) { ok = false; }
-  }
-  copyLogBtn.textContent = ok ? 'コピーしました' : 'コピー失敗';
-  setTimeout(() => { copyLogBtn.textContent = 'コピー'; }, 1500);
-});
-autoscrollBtn.addEventListener('click', () => {
-  autoscroll = !autoscroll;
-  autoscrollBtn.textContent = '自動スクロール: ' + (autoscroll ? 'ON' : 'OFF');
-});
-engineLogBtn.addEventListener('click', () => {
-  showEngine = !showEngine;
-  engineLogBtn.textContent = 'エンジン詳細: ' + (showEngine ? 'ON' : 'OFF');
-  renderConsole(lastLog);  // 即時反映
-});
-function renderConsole(log){
-  if (!Array.isArray(log)) return;
-  lastLog = log;
-  const rows = log.filter(e => showEngine || e.kind !== 'engine');
-  consoleEl.innerHTML = rows.map(e => {
-    const pct = (e.percent == null) ? '' : ` <span class="pc">${e.percent}%</span>`;
-    const kind = e.kind || 'event';
-    return `<span class="ln ${kind}"><span class="ts">${esc(e.t)}</span> <span class="fn">${esc(e.file)}</span> ${esc(e.msg)}${pct}</span>`;
-  }).join('');
-  if (autoscroll) consoleEl.scrollTop = consoleEl.scrollHeight;
-}
-
-let pollTimer = null;
-async function pollJobs(){
-  try {
-    const [jobs, st] = await Promise.all([
-      fetch('/api/jobs').then(r => r.json()),
-      fetch('/api/status').then(r => r.json()),
-    ]);
-    if (jobs.length) { jobsSection.style.display = 'block'; renderJobs(jobs); }
-    renderConsole(st.log);
-    paused = !!st.paused;
-    pauseBtn.textContent = paused ? '再開' : '一時停止';
-    pauseBtn.classList.toggle('paused', paused);
-    if (!st.running) {
-      startBtn.disabled = pendingFiles.length === 0;
-      startBtn.textContent = '変換開始';
-      if (pollTimer && !paused) { clearInterval(pollTimer); pollTimer = null; }
-    }
-  } catch (e) { /* サーバ未応答は無視 */ }
-}
-function ensurePolling(){ if (!pollTimer) { pollTimer = setInterval(pollJobs, 1500); } pollJobs(); }
-
-pauseBtn.addEventListener('click', () => jobAction(paused ? '/api/resume' : '/api/pause'));
-stopBtn.addEventListener('click', () => jobAction('/api/stop'));
+$('dropzone').addEventListener('click', ()=>$('fileInput').click());
+$('fileInput').addEventListener('change', e=>addFiles(Array.from(e.target.files)));
+['dragenter','dragover'].forEach(ev=>$('dropzone').addEventListener(ev,e=>{e.preventDefault();$('dropzone').classList.add('drag');}));
+['dragleave','drop'].forEach(ev=>$('dropzone').addEventListener(ev,e=>{e.preventDefault();$('dropzone').classList.remove('drag');}));
+$('dropzone').addEventListener('drop', e=>addFiles(Array.from(e.dataTransfer.files)));
 
 // ---- 変換開始 ----
-startBtn.addEventListener('click', async () => {
-  showBanner('');
-  startBtn.disabled = true; startBtn.textContent = '変換中…';
-
+$('startBtn').addEventListener('click', async () => {
+  showBanner(''); $('startBtn').disabled=true;
   const form = new FormData();
-  for (const f of pendingFiles) form.append('files', f);
+  for(const f of pendingFiles) form.append('files', f);
   form.append('drop_headers_footers', $('opt-headers').checked);
   form.append('obsidian_wiklinks', $('opt-wiklinks').checked);
   form.append('front_matter', $('opt-frontmatter').checked);
   form.append('split_chapters', $('opt-split').checked);
   form.append('skip_existing', $('opt-skip').checked);
-  form.append('out_dir', outDirEl.value || '');
+  form.append('out_dir', $('outDir').value || '');
   form.append('text_cleanup', $('opt-cleanup').checked);
-  form.append('llm_structure', optLlm.checked);
+  form.append('llm_structure', $('opt-llm').checked);
   form.append('llm_anomaly', $('opt-llm-anomaly').checked);
   form.append('llm_rewrite', $('opt-llm-rewrite').checked);
   form.append('llm_figure_alt', $('opt-llm-alt').checked);
-  form.append('llm_api_key', llmKeyEl.value || '');
-
-  // 設定を記憶（任意）。remember=false なら保存済みを削除。
-  const settings = {
-    remember: optRemember.checked,
-    llm_api_key: llmKeyEl.value || '',
-    opt: {
-      'opt-headers': $('opt-headers').checked, 'opt-wiklinks': $('opt-wiklinks').checked,
-      'opt-frontmatter': $('opt-frontmatter').checked, 'opt-split': $('opt-split').checked,
-      'opt-skip': $('opt-skip').checked, 'opt-cleanup': $('opt-cleanup').checked,
-      'opt-llm': optLlm.checked, 'opt-llm-anomaly': $('opt-llm-anomaly').checked,
-      'opt-llm-rewrite': $('opt-llm-rewrite').checked, 'opt-llm-alt': $('opt-llm-alt').checked,
-    },
-  };
-  fetch('/api/settings', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(settings) });
-
-  const resp = await fetch('/api/convert', { method:'POST', body: form });
-  const data = await resp.json();
-  if (data.error) {
-    showBanner(data.error);
-    startBtn.disabled = pendingFiles.length === 0; startBtn.textContent = '変換開始';
-    return;
-  }
-  pendingFiles = []; renderFileList();
-  ensurePolling();
+  form.append('llm_api_key', $('llmKey').value || '');
+  persistSettings();
+  try {
+    const r = await fetch('/api/convert',{method:'POST',body:form});
+    const d = await r.json();
+    if(d.error){ showBanner(d.error); return; }
+    pendingFiles=[]; renderFileList();
+    ensurePolling();
+  } catch(e){ showBanner('変換の開始に失敗しました: '+e); }
+  finally { $('startBtn').disabled = pendingFiles.length===0; }
 });
+
+// ---- バッチ制御 ----
+async function ctl(url){ try{ await fetch(url,{method:'POST'}); }catch(e){} pollAll(); }
+$('pauseBtn').addEventListener('click', ()=>ctl(paused?'/api/resume':'/api/pause'));
+$('stopBtn').addEventListener('click', ()=>ctl('/api/stop'));
+
+// ---- ライブラリ表 ----
+function stageCell(state){
+  const map = {done:['stg-done','✓'], none:['stg-none','–'], running:['stg-run','…'], error:['stg-err','⚠']};
+  const [cls,ch] = map[state] || map.none;
+  const td=document.createElement('td'); td.className='col-st';
+  td.innerHTML = `<span class="${cls}">${ch}</span>`;
+  return td;
+}
+function outDirParam(){ return encodeURIComponent($('outDir').value || ''); }
+
+async function estimateBook(name){
+  try{
+    const r = await fetch('/api/estimate',{method:'POST',headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({book:name, out_dir:$('outDir').value||''})});
+    const d = await r.json();
+    if(!d.ok){ showBanner(d.error||'概算できませんでした'); return; }
+    estCache[name] = d.estimates; pollAll();
+  }catch(e){ showBanner('概算に失敗: '+e); }
+}
+async function runBook(name){
+  const feats = Array.from(checkedCache[name] || []);
+  if(!feats.length){ showBanner('実行する処理をチェックしてください'); return; }
+  try{
+    const r = await fetch('/api/postprocess',{method:'POST',headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({book:name, features:feats, out_dir:$('outDir').value||'', llm_api_key:$('llmKey').value||''})});
+    const d = await r.json();
+    if(!d.ok){ showBanner(d.error||'実行できませんでした'); return; }
+    checkedCache[name] = new Set();
+    ensurePolling();
+  }catch(e){ showBanner('実行に失敗: '+e); }
+}
+async function retryBook(name){
+  try{
+    const r = await fetch('/api/retry',{method:'POST',headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({book:name, out_dir:$('outDir').value||''})});
+    const d = await r.json();
+    if(!d.ok){ showBanner(d.error||'リトライできませんでした'); return; }
+    ensurePolling();
+  }catch(e){ showBanner('リトライに失敗: '+e); }
+}
+
+function aiCell(book){
+  const td=document.createElement('td');
+  const job=book.job;
+  if(job && job.status==='processing'){ td.innerHTML='<span class="muted">処理中…</span>'; return td; }
+  if(!book.has_ir){ td.innerHTML='<span class="muted">— 変換後に利用可</span>'; return td; }
+  const wrap=document.createElement('div'); wrap.className='aicell';
+  checkedCache[book.name] = checkedCache[book.name] || new Set();
+  const est = estCache[book.name] || {};
+  for(const {key,label} of AI_FEATURES){
+    const ai = book.ai[key] || {};
+    const e = est[key] || {};
+    const na = (e.applicable===false);
+    const span=document.createElement('label'); span.className='feat'+(na?' na':'');
+    const cb=document.createElement('input'); cb.type='checkbox'; cb.disabled=na;
+    cb.checked = checkedCache[book.name].has(key);
+    cb.onchange=()=>{ cb.checked?checkedCache[book.name].add(key):checkedCache[book.name].delete(key); };
+    span.appendChild(cb);
+    const t=document.createElement('span');
+    t.innerHTML = (ai.done?'<span class="done">✅</span>':'') + esc(label) +
+      (e.jpy!=null ? ` <span class="yen">¥${e.jpy}</span>` : (na?' <span class="muted">対象なし</span>':''));
+    span.appendChild(t);
+    wrap.appendChild(span);
+  }
+  const bEst=document.createElement('button'); bEst.className='btn small go'; bEst.textContent='概算';
+  bEst.onclick=()=>estimateBook(book.name);
+  const bRun=document.createElement('button'); bRun.className='btn small'; bRun.textContent='実行 ▶';
+  bRun.onclick=()=>runBook(book.name);
+  wrap.append(bEst,bRun);
+  td.appendChild(wrap);
+  return td;
+}
+
+function detailRow(book, span){
+  const tr=document.createElement('tr'); tr.className='subrow';
+  const td=document.createElement('td'); td.colSpan=span;
+  const job=book.job;
+  const parts=[];
+  parts.push(`<div class="kv">保存先: <span class="openlink" data-open="${esc(book.out_dir)}">📂 ${esc(book.out_dir)}</span></div>`);
+  const aiLines = AI_FEATURES.map(f=>{ const a=book.ai[f.key]||{}; return `${f.label}: ${a.done?('✅'+(a.at?(' '+a.at):'')+(a.jpy!=null?` (¥${a.jpy})`:'')):'未'}`; });
+  parts.push(`<div class="kv detail">AI適用: ${esc(aiLines.join(' / '))}</div>`);
+  if(job && job.status==='error'){
+    parts.push(`<div class="err-msg">${esc(job.error||'エラー')}</div>`);
+    if(job.traceback) parts.push(`<pre>${esc(job.traceback)}</pre>`);
+    if(job.log_path) parts.push(`<div class="kv">ログ: <span class="openlink" data-open="${esc(job.log_path)}">${esc(job.log_path)}</span></div>`);
+  }
+  td.innerHTML = `<div class="detail">${parts.join('')}</div>`;
+  td.querySelectorAll('[data-open]').forEach(el=>el.addEventListener('click',()=>openFolder(el.getAttribute('data-open'))));
+  tr.appendChild(td);
+  return tr;
+}
+
+function renderLibrary(books){
+  const body=$('libBody'); body.innerHTML='';
+  $('libCount').textContent = books.length ? `(${books.length}冊)` : '';
+  for(const book of books){
+    const job=book.job||null;
+    const st = Object.assign({}, book.stages);
+    // 実行中ジョブがあれば、進んでいる段階を running 扱いにする（見た目のヒント）。
+    const tr=document.createElement('tr');
+    const xtd=document.createElement('td'); xtd.className='col-x'; xtd.textContent = expanded.has(book.name)?'▾':'▸';
+    xtd.onclick=()=>{ expanded.has(book.name)?expanded.delete(book.name):expanded.add(book.name); pollAll(); };
+    tr.appendChild(xtd);
+    const ntd=document.createElement('td');
+    ntd.innerHTML = `<span class="bookname">${esc(book.name)}</span>` +
+      (st.render==='done' ? `<span class="openlink" data-open="${esc(book.out_dir)}">📂開く</span>` : '');
+    ntd.querySelectorAll('[data-open]').forEach(el=>el.addEventListener('click',ev=>{ev.stopPropagation(); openFolder(el.getAttribute('data-open'));}));
+    tr.appendChild(ntd);
+    tr.appendChild(stageCell(st.ocr));
+    tr.appendChild(stageCell(st.layout));
+    tr.appendChild(stageCell(st.render));
+    tr.appendChild(aiCell(book));
+    body.appendChild(tr);
+
+    // 実行中/失敗/待機のサブ行
+    if(job && job.status==='processing'){
+      const sr=document.createElement('tr'); sr.className='subrow';
+      const td=document.createElement('td'); td.colSpan=6;
+      td.innerHTML = `<div class="progress-meta"><span>${esc(job.step||'処理中…')}</span><span class="pct">${job.percent||0}%</span></div>`+
+        `<div class="progress-bar"><span style="width:${job.percent||0}%"></span></div>`;
+      sr.appendChild(td); body.appendChild(sr);
+    } else if(job && job.status==='error'){
+      const sr=document.createElement('tr'); sr.className='subrow';
+      const td=document.createElement('td'); td.colSpan=6;
+      const b=document.createElement('button'); b.className='btn small'; b.textContent='🔁 リトライ';
+      b.onclick=()=>retryBook(book.name);
+      td.innerHTML = `<span class="err-msg">失敗: ${esc(job.error||'')}</span> `;
+      td.appendChild(b);
+      const more=document.createElement('button'); more.className='btn small'; more.textContent='詳細';
+      more.onclick=()=>{ expanded.has(book.name)?expanded.delete(book.name):expanded.add(book.name); pollAll(); };
+      td.appendChild(more);
+      sr.appendChild(td); body.appendChild(sr);
+    } else if(job && job.pending){
+      const sr=document.createElement('tr'); sr.className='subrow';
+      const td=document.createElement('td'); td.colSpan=6;
+      const mk=(txt,fn)=>{ const x=document.createElement('button'); x.className='btn small'; x.textContent=txt; x.onclick=fn; return x; };
+      td.innerHTML='<span class="muted">待機中 </span>';
+      td.append(
+        mk('↑', ()=>ctl(`/api/jobs/${job.job_id}/move?direction=up`)),
+        mk('↓', ()=>ctl(`/api/jobs/${job.job_id}/move?direction=down`)),
+        mk('スキップ', ()=>ctl(`/api/jobs/${job.job_id}/skip`)),
+      );
+      sr.appendChild(td); body.appendChild(sr);
+    }
+
+    if(expanded.has(book.name)) body.appendChild(detailRow(book, 6));
+  }
+}
+
+// ---- ログコンソール ----
+const consoleEl=$('console');
+let autoscroll=true, showEngine=true, lastLog=[];
+$('autoscrollBtn').addEventListener('click',()=>{ autoscroll=!autoscroll; $('autoscrollBtn').textContent='自動スクロール: '+(autoscroll?'ON':'OFF'); });
+$('engineLogBtn').addEventListener('click',()=>{ showEngine=!showEngine; $('engineLogBtn').textContent='エンジン詳細: '+(showEngine?'ON':'OFF'); renderConsole(lastLog); });
+function logAsText(){ return lastLog.filter(e=>showEngine||e.kind!=='engine').map(e=>`${e.t}\t${e.file}\t${e.msg}${e.percent==null?'':' '+e.percent+'%'}`).join('\n'); }
+$('copyLogBtn').addEventListener('click', async ()=>{
+  const text=logAsText(); let ok=false;
+  try{ await navigator.clipboard.writeText(text); ok=true; }
+  catch(e){ try{ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); ok=document.execCommand('copy'); document.body.removeChild(ta); }catch(e2){ok=false;} }
+  $('copyLogBtn').textContent = ok?'コピーしました':'コピー失敗'; setTimeout(()=>{$('copyLogBtn').textContent='📋コピー';},1500);
+});
+function renderConsole(log){
+  if(!Array.isArray(log)) return; lastLog=log;
+  consoleEl.innerHTML = log.filter(e=>showEngine||e.kind!=='engine').map(e=>{
+    const pct=(e.percent==null)?'':` <span class="pc">${e.percent}%</span>`;
+    return `<span class="ln ${e.kind||'event'}"><span class="ts">${esc(e.t)}</span> <span class="fn">${esc(e.file)}</span> ${esc(e.msg)}${pct}</span>`;
+  }).join('');
+  if(autoscroll) consoleEl.scrollTop=consoleEl.scrollHeight;
+}
+
+// ---- ポーリング ----
+let pollTimer=null;
+async function pollAll(){
+  try{
+    const [books, st] = await Promise.all([
+      fetch('/api/library?out_dir='+outDirParam()).then(r=>r.json()),
+      fetch('/api/status').then(r=>r.json()),
+    ]);
+    renderLibrary(Array.isArray(books)?books:[]);
+    renderConsole(st.log);
+    paused=!!st.paused;
+    $('pauseBtn').textContent = paused?'再開':'一時停止';
+    $('pauseBtn').classList.toggle('paused', paused);
+  }catch(e){ /* サーバ未応答は無視 */ }
+}
+function ensurePolling(){ if(!pollTimer) pollTimer=setInterval(pollAll,2000); pollAll(); }
 </script>
 </body>
 </html>

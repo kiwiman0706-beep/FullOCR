@@ -193,6 +193,79 @@ def _write_structure_review(doc: Document, out_book: Path) -> None:
         )
 
 
+def postprocess_book(
+    cfg: PipelineConfig,
+    name: str,
+    features: list[str],
+    *,
+    on_step=None,
+    on_output=None,
+) -> dict:
+    """既存の変換結果（work/<name>/ir.json）に、選んだAI処理だけを後付けする。
+
+    OCR・レイアウト解析はやり直さず、保存済み IR を読み込んで指定機能だけ実行し、
+    再レンダリングする（速い・OCR課金ゼロ）。適用状況は status.json に記録する。
+    features は estimate.FEATURES の部分集合（structure/rewrite/figure_alt/anomaly）。
+    """
+    from . import library
+    from .estimate import estimate_feature
+    from .llm import make_client
+    from .pipeline import structure_llm as sl
+
+    step = on_step or _noop_step
+    ir_path = cfg.work_dir / name / "ir.json"
+    if not ir_path.exists():
+        raise FileNotFoundError(f"中間データが見つかりません: {ir_path}（先に通常変換が必要）")
+
+    doc = Document.load(ir_path)
+    client = make_client(cfg.structure_llm)
+    if client is None:
+        raise RuntimeError("Gemini APIキーが未設定です（設定でキーを入力してください）")
+
+    # 実行前に概算を控えておき、記録に使う（実行後は figure_alt 等が0になるため）。
+    pre_estimate = {f: estimate_feature(doc, f, cfg) for f in features}
+
+    applied: list[str] = []
+    sections: list[str] = []
+    if "structure" in features:
+        step(10, "AIで見出し構造を解析中…")
+        sl.assign_hierarchy(doc, client, cfg.structure_llm)
+        if cfg.structure_llm.review:
+            r = sl.review_structure(doc, client, cfg.structure_llm)
+            if r:
+                sections.append("## 構成レビュー\n\n" + r)
+        applied.append("structure")
+    if "rewrite" in features:
+        step(40, "本文をAIでリライト整形中…")
+        sl.rewrite_body(doc, client, cfg.structure_llm)
+        applied.append("rewrite")
+    if "figure_alt" in features:
+        step(65, "挿絵の代替テキストを生成中…")
+        sl.describe_figures(doc, client, cfg.structure_llm)
+        applied.append("figure_alt")
+    if "anomaly" in features:
+        step(82, "本文の異常をチェック中…")
+        a = sl.check_anomalies(doc, client, cfg.structure_llm)
+        if a:
+            sections.append("## 本文の異常チェック\n\n" + a)
+        applied.append("anomaly")
+
+    if sections:
+        doc.meta.structure_review = "\n\n".join(sections)
+
+    step(90, "保存・再レンダリング中…")
+    doc.save(ir_path)
+    out_book = cfg.out_dir / name
+    render_document(doc, out_book, cfg.render)
+    _write_structure_review(doc, out_book)
+
+    for f in applied:
+        library.record_ai(cfg, name, f, pre_estimate.get(f, {}).get("jpy"))
+
+    step(100, "完了")
+    return {"applied": applied}
+
+
 def render_from_ir(ir_path: str | Path, cfg: PipelineConfig, out_name: str | None = None) -> Path:
     """（GUI補正後などの）IR json から Markdown を再生成する。"""
     doc = Document.load(ir_path)

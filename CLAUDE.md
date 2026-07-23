@@ -159,6 +159,22 @@ structure engine (layout only)  ────┘      (build_document)
   installed, no sudo) — verify GUI changes by hitting the FastAPI endpoints directly
   (`fastapi.testclient.TestClient`, or run `uvicorn fullocr.gui.server:app` and `curl`/browser
   against `http://127.0.0.1:8756`) rather than trying to screenshot the desktop window.
+  The GUI is a **library dashboard**: `/api/library` scans `out_dir`+`work_dir` and returns every
+  book with per-stage status (OCR/layout/render, from disk) and per-AI-feature applied-state
+  (persisted in `work/<book>/status.json`, `library.record_ai`), which the server merges with live
+  JobManager state (percent/step/error). A per-book row can `/api/estimate` (token→¥ cost, from
+  `estimate.py`, read-only/no charge) and `/api/postprocess` (run selected AI passes —
+  `batch.postprocess_book` loads the saved `ir.json`, runs only the chosen `structure_llm` passes,
+  re-renders; **no re-OCR**), plus `/api/retry` (re-run a failed convert from the source PDF path
+  kept in `status.json`). The JobManager runner (`_run_one`) branches on `meta["kind"]`
+  (`"convert"` vs `"postprocess"`). Conversion options + AI defaults + API key live in a settings
+  drawer (persisted via `/api/settings`); per-book AI actions live in the table. The engine's raw
+  stdout/Docling logs stream live to the console via `on_output` (`pipeline/proc.run_streaming` +
+  a logging handler for the in-process Docling path).
+
+- `estimate.py` — token/¥ cost estimate per AI feature from a `Document` (chars→tokens via
+  `CostConfig.chars_per_token`, × model price). `rewrite` is priciest (output ≈ whole body).
+  `library.py` — `scan_library` (disk→book list), `status.json` load/save/`record_ai`.
 
 ### Engine adapters are execution + parsing, not just parsing
 

@@ -113,6 +113,20 @@ class StructureLLMConfig(BaseModel):
     figure_alt_text: bool = False
 
 
+class CostConfig(BaseModel):
+    """AI処理のコスト概算に使う単価（GUI表示用）。
+
+    既定は gemini-2.5-flash（$0.30/1M 入力, $2.50/1M 出力）。あくまで概算表示なので、
+    為替やトークン換算はざっくり。必要なら config でここだけ差し替える。
+    """
+
+    usd_jpy: float = 155.0
+    price_in_per_mtok: float = 0.30   # 入力 100万トークンあたり USD
+    price_out_per_mtok: float = 2.50  # 出力 100万トークンあたり USD
+    # 日本語のおおよその「1トークンあたり文字数」。概算なので粗くてよい。
+    chars_per_token: float = 1.8
+
+
 class RenderConfig(BaseModel):
     """Markdown / Obsidian 出力設定。"""
 
@@ -140,6 +154,7 @@ class PipelineConfig(BaseModel):
     marker: MarkerConfig = Field(default_factory=MarkerConfig)
     structure_llm: StructureLLMConfig = Field(default_factory=StructureLLMConfig)
     render: RenderConfig = Field(default_factory=RenderConfig)
+    cost: CostConfig = Field(default_factory=CostConfig)
 
     # ルールベースの本文整形（ページ境界の改行連結・ノンブル残骸除去など）。無料・既定ON。
     text_cleanup: bool = True
