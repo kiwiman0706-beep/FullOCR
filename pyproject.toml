@@ -1,6 +1,6 @@
 [project]
 name = "fullocr"
-version = "0.7.0"
+version = "0.8.0"
 description = "自炊した挿絵付き専門書PDFを、NDLOCR-Lite + Marker で高精度にMarkdown化するバッチ/GUIツール（Obsidian最適化）"
 readme = "README.md"
 requires-python = ">=3.11"

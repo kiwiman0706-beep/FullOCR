@@ -91,14 +91,26 @@ def _maybe_comment(md: str, hide: bool) -> str:
     return f"%%\n{md}\n%%" if hide else md
 
 
-def _page_to_md(page: Page, cfg: RenderConfig, hidden: set[int] | None = None) -> list[str]:
+def _page_link(page: Page, cfg: RenderConfig, pdf_name: str | None) -> str:
+    """Obsidian の PDF ページリンク（該当ページの原文を開く）。無効時は空。"""
+    if not (cfg.pdf_page_links and pdf_name):
+        return ""
+    return f"  [[{pdf_name}#page={page.number}|📄原文 p.{page.number}]]"
+
+
+def _page_to_md(
+    page: Page, cfg: RenderConfig, hidden: set[int] | None = None, pdf_name: str | None = None
+) -> list[str]:
     hidden = hidden or set()
     hide = page.number in hidden
     chunks: list[str] = []
     for b in page.ordered_blocks():
         md = _block_to_md(b, cfg)
-        if md:
-            chunks.append(_maybe_comment(md, hide))
+        if not md:
+            continue
+        if b.type is BlockType.HEADING:
+            md += _page_link(page, cfg, pdf_name)
+        chunks.append(_maybe_comment(md, hide))
     return chunks
 
 
@@ -180,10 +192,11 @@ def _split_documents(doc: Document, cfg: RenderConfig) -> list[tuple[str, list[s
     """
     level = cfg.split_by_heading_level
     hidden = _hidden_pages(doc, cfg)
+    pdf_name = doc.meta.pdf_name
     if level is None:
         body: list[str] = []
         for page in doc.pages:
-            body.extend(_page_to_md(page, cfg, hidden))
+            body.extend(_page_to_md(page, cfg, hidden, pdf_name))
         title = doc.meta.title or "document"
         return [(slugify(title), body)]
 
@@ -211,6 +224,8 @@ def _split_documents(doc: Document, cfg: RenderConfig) -> list[tuple[str, list[s
                 idx += 1
             md = _block_to_md(b, cfg)
             if md:
+                if b.type is BlockType.HEADING:
+                    md += _page_link(page, cfg, pdf_name)
                 current.append(_maybe_comment(md, hide))
     flush()
     if not sections:  # 見出しが無かった場合の保険

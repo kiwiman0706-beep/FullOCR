@@ -149,7 +149,10 @@ structure engine (layout only)  ────┘      (build_document)
   writing — needed because re-rendering the same book with different render options (e.g. via
   `--no-engines`) used to leave old split files behind. `RenderConfig.hide_toc_pages` wraps the
   blocks of printed-TOC pages (`DocMeta.toc_pages`) in Obsidian `%% … %%` comments instead of
-  dropping them (the generated `#` outline makes the printed 目次 redundant).
+  dropping them (the generated `#` outline makes the printed 目次 redundant). `RenderConfig.pdf_page_links`
+  appends `[[<DocMeta.pdf_name>#page=N|📄原文 p.N]]` to each heading so tapping it in Obsidian mobile
+  opens the bundled transparent-text PDF at that page (`pdf_name` is set from the copied `_text.pdf`
+  in `process_pdf` before render).
 - `pipeline/tocdetect.py` — free/rule-based, runs in `build_ir_for_pdf` after merge:
   `detect_toc_pages` finds the printed 目次 page range (front pages whose lines mostly end in a page
   number / leader dots, or carry a 目次/CONTENTS title) → `DocMeta.toc_pages`; this is the primitive

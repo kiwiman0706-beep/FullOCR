@@ -174,6 +174,12 @@ def process_pdf(
         pdf_path, cfg, run_engines=run_engines, on_step=on_step, on_output=on_output
     )
 
+    # 透明テキストPDFの名前を先に控える（見出し→PDFページリンクの張り先になる）。
+    ndl_out = cfg.work_dir / pdf_path.stem / "ndl"
+    transparent_pdf = _first_glob(ndl_out, cfg.ndl.pdf_glob)
+    if transparent_pdf is not None:
+        doc.meta.pdf_name = transparent_pdf.name
+
     # IR を保存（GUI 補正の入力になる）。
     step(90, "中間データ(IR)を保存中…")
     ir_path = cfg.work_dir / pdf_path.stem / "ir.json"
@@ -188,8 +194,6 @@ def process_pdf(
     # NDL の透明テキストPDF（OCR結果の目視確認・別ツールでの再利用に使える）を
     # 作業ディレクトリから出力フォルダにもコピーしておく。
     step(98, "OCRテキスト付きPDFをコピー中…")
-    ndl_out = cfg.work_dir / pdf_path.stem / "ndl"
-    transparent_pdf = _first_glob(ndl_out, cfg.ndl.pdf_glob)
     if transparent_pdf is not None:
         dest_pdf = out_book / transparent_pdf.name
         shutil.copy2(transparent_pdf, dest_pdf)

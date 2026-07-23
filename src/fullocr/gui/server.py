@@ -179,6 +179,7 @@ async def convert(
     text_cleanup: bool = Form(True),
     hide_toc_pages: bool = Form(False),
     pdf_bookmarks: bool = Form(True),
+    pdf_page_links: bool = Form(False),
     fetch_biblio: bool = Form(False),
     llm_structure: bool = Form(False),
     llm_anomaly: bool = Form(False),
@@ -201,6 +202,7 @@ async def convert(
         front_matter=front_matter,
         split_by_heading_level=1 if split_chapters else None,
         hide_toc_pages=hide_toc_pages,
+        pdf_page_links=pdf_page_links,
     )
     if llm_structure:
         cfg.structure_llm.enabled = True

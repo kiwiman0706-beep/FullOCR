@@ -62,6 +62,26 @@ def test_heading_sequence_ok_returns_none():
     assert tocdetect.heading_sequence_report(doc) is None
 
 
+def test_pdf_page_links_on_headings():
+    doc = Document(meta=DocMeta(title="t", pdf_name="t_text.pdf"), pages=[
+        _page(5, [("第2章 各論", BlockType.HEADING), ("本文。", BlockType.BODY)]),
+    ])
+    cfg = RenderConfig(pdf_page_links=True, front_matter=False)
+    body = "\n\n".join(_split_documents(doc, cfg)[0][1])
+    # 見出し行に PDF の該当ページ(5)へのリンクが付く
+    assert "[[t_text.pdf#page=5|📄原文 p.5]]" in body
+    # 本文には付かない
+    assert "本文。" in body
+
+
+def test_pdf_page_links_off_by_default():
+    doc = Document(meta=DocMeta(title="t", pdf_name="t_text.pdf"), pages=[
+        _page(1, [("第1章", BlockType.HEADING)]),
+    ])
+    body = "\n\n".join(_split_documents(doc, RenderConfig(front_matter=False))[0][1])
+    assert "#page=" not in body
+
+
 def test_hide_toc_pages_comments_out_content():
     doc = Document(meta=DocMeta(title="t", toc_pages=[1]), pages=[
         _toc_page(1),

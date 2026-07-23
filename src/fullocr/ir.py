@@ -119,6 +119,8 @@ class DocMeta(BaseModel):
     title: str | None = None
     author: str | None = None
     source_pdf: str | None = None
+    # 同梱した透明テキストPDFのファイル名（見出し→PDFページリンクの張り先）。
+    pdf_name: str | None = None
     # 書誌メタ（biblio.py がネットから取得。既定は空）。front-matter に出力される。
     publisher: str | None = None
     published: str | None = None

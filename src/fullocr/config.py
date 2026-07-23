@@ -148,6 +148,9 @@ class RenderConfig(BaseModel):
     # 印刷された「目次」ページ（DocMeta.toc_pages）を本文でコメントアウトして隠す。
     # 生成アウトライン(#見出し/Obsidian Outline)があれば印刷目次は冗長なため。
     hide_toc_pages: bool = False
+    # 各見出しに、同梱の透明テキストPDFの該当ページへのリンク（Obsidian の
+    # [[book_text.pdf#page=N]]）を付ける。スマホで「原文のそのページ」を開ける。
+    pdf_page_links: bool = False
 
 
 class PipelineConfig(BaseModel):
