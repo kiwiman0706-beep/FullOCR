@@ -61,6 +61,47 @@ def test_lookup_none_when_no_results():
     assert biblio.lookup("なにか", fetcher=lambda q: [], enricher=lambda i: None) is None
 
 
+_NDL_XML = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/"
+     xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcndl="http://ndl.go.jp/dcndl/terms/"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+ <channel>
+  <item>
+    <title>極論で語る神経内科</title>
+    <dc:creator>河合真</dc:creator>
+    <dc:publisher>丸善出版</dc:publisher>
+    <dcterms:issued>2016</dcterms:issued>
+    <dc:identifier xsi:type="dcndl:ISBN">978-4-621-30000-0</dc:identifier>
+  </item>
+ </channel>
+</rss>"""
+
+
+def test_parse_ndl_xml_extracts_fields():
+    cands = biblio.parse_ndl_xml(_NDL_XML)
+    assert len(cands) == 1
+    m = cands[0]
+    assert m.title == "極論で語る神経内科"
+    assert m.publisher == "丸善出版"
+    assert m.isbn13 == "9784621300000"
+    assert m.source == "ndl"
+    assert "河合真" in m.authors
+
+
+def test_search_candidates_combines_and_dedups():
+    g = biblio.BiblioMeta(title="極論で語る神経内科", isbn13="9784621300000", source="google_books")
+    n = biblio.BiblioMeta(title="極論で語る神経内科", isbn13="9784621300000", source="ndl")  # dup
+    other = biblio.BiblioMeta(title="別の本", isbn13="9780000000000", source="ndl")
+    cands = biblio.search_candidates(
+        "極論で語る神経内科",
+        providers=[lambda q: [g, other], lambda q: [n]],
+    )
+    titles = [c.title for c in cands]
+    assert titles.count("極論で語る神経内科") == 1  # 重複は1件に
+    assert "別の本" in titles
+    assert cands[0].title == "極論で語る神経内科"  # 一致度が高い方が先頭
+
+
 def test_apply_to_doc_writes_front_matter_fields():
     doc = Document(meta=DocMeta(title="旧題"), pages=[Page(number=1, width=10, height=10)])
     m = biblio.BiblioMeta(title="正式書名", authors=["著者A", "著者B"], publisher="出版社",

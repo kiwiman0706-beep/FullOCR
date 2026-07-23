@@ -330,36 +330,26 @@ def postprocess_book(
     return {"applied": applied}
 
 
-def enrich_book(cfg: PipelineConfig, name: str, *, on_step=None, on_output=None) -> dict:
-    """既存書籍にネットで書誌メタ（ISBN・出版社等）を取得して付与・再レンダリングする。
+def apply_biblio(cfg: PipelineConfig, name: str, meta) -> dict:
+    """選ばれた書誌メタ(BiblioMeta)を既存書籍に適用し、front-matterを更新して再出力する。
 
-    ファイル名（書名）から Google Books / openBD を引き、front-matter に反映。OCRや
-    レイアウトは触らない。見つからなければ found=False を返す（エラーにはしない）。
+    OCR・レイアウトは触らない。ISBN があれば openBD で出版社・書影を補完してから書く。
     """
     from . import biblio as biblio_mod
     from . import library
 
-    step = on_step or _noop_step
     ir_path = cfg.work_dir / name / "ir.json"
     if not ir_path.exists():
         raise FileNotFoundError(f"中間データが見つかりません: {ir_path}（先に通常変換が必要）")
-
     doc = Document.load(ir_path)
-    step(20, "書誌メタ（ISBN・出版社）を検索中…")
-    bm = biblio_mod.lookup(name)
-    if bm is None:
-        step(100, "該当なし")
-        return {"found": False}
-    biblio_mod.apply_to_doc(doc, bm)
-
-    step(80, "保存・再レンダリング中…")
+    meta = biblio_mod.enrich_with_openbd(meta)
+    biblio_mod.apply_to_doc(doc, meta)
     doc.save(ir_path)
     out_book = cfg.out_dir / name
     render_document(doc, out_book, cfg.render)
     _write_structure_review(doc, out_book)
     library.record_ai(cfg, name, "biblio", None)
-    step(100, "完了")
-    return {"found": True, "isbn": bm.isbn13 or bm.isbn10, "publisher": bm.publisher}
+    return {"ok": True, "isbn": meta.isbn13 or meta.isbn10, "publisher": meta.publisher}
 
 
 def render_from_ir(ir_path: str | Path, cfg: PipelineConfig, out_name: str | None = None) -> Path:

@@ -145,6 +145,17 @@
   .pv-body a{color:var(--accent); cursor:pointer;}
   .pv-body .wikilink{color:var(--accent); cursor:pointer; text-decoration:underline;}
   .pv-body table{margin:.6em 0;} .pv-body em{color:var(--ink-soft);}
+
+  .bx-item{display:flex; gap:12px; padding:10px; border:1px solid var(--line); border-radius:8px; margin-bottom:8px; cursor:pointer; background:var(--panel);}
+  .bx-item:hover{background:var(--accent-soft);}
+  .bx-item.sel{border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-soft);}
+  .bx-item input{margin-top:3px;}
+  .bx-item img{width:48px; height:64px; object-fit:cover; border:1px solid var(--line); border-radius:4px; background:var(--bg);}
+  .bx-item .meta{flex:1; min-width:0;}
+  .bx-item .bt{font-weight:600;}
+  .bx-item .bd{font-size:12px; color:var(--ink-soft);}
+  .bx-src{display:inline-block; font-size:10px; padding:1px 6px; border-radius:99px; background:var(--accent-soft); color:var(--accent); margin-left:6px;}
+  .bx-empty{color:var(--ink-soft); padding:16px;}
 </style>
 </head>
 <body>
@@ -229,6 +240,18 @@
   <input type="password" class="field" id="llmKey" placeholder="Gemini APIキー（環境変数 GEMINI_API_KEY があれば空欄可）" />
   <div class="opt" style="margin-top:6px;"><input type="checkbox" id="opt-remember"><label for="opt-remember">このキー・設定をこのPCに記憶（ローカルのみ・平文）</label></div>
   <div class="row"><span class="grow"></span><button class="primary" id="saveSettings">保存</button></div>
+</div>
+
+<!-- 書誌メタ 候補選択 -->
+<div class="pv-overlay" id="bxOverlay"></div>
+<div class="pv-modal" id="bxModal" style="inset:8vh 20vw;">
+  <div class="pv-head">
+    <span class="title" id="bxTitle">書誌メタの候補</span>
+    <span class="sp"></span>
+    <button class="btn small" id="bxApply">選択を適用</button>
+    <button class="btn small" id="bxClose">× 閉じる</button>
+  </div>
+  <div class="pv-body" id="bxBody"></div>
 </div>
 
 <!-- MDプレビュー -->
@@ -403,15 +426,56 @@ async function runBook(name){
     ensurePolling();
   }catch(e){ showBanner('実行に失敗: '+e); }
 }
+// 書誌メタ: 検索 → 候補ダイアログ → 確認して適用
+let bxBook = '', bxCandidates = [], bxSel = -1;
 async function biblioBook(name){
+  showBanner('');
+  const btnLabel = '検索中…';
   try{
-    const r = await fetch('/api/biblio',{method:'POST',headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({book:name, out_dir:$('outDir').value||''})});
+    const r = await fetch('/api/biblio_search',{method:'POST',headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({book:name})});
     const d = await r.json();
-    if(!d.ok){ showBanner(d.error||'メタ取得できませんでした'); return; }
-    ensurePolling();
-  }catch(e){ showBanner('メタ取得に失敗: '+e); }
+    if(!d.ok){ showBanner(d.error||'検索に失敗しました'); return; }
+    bxBook = name; bxCandidates = d.candidates || []; bxSel = bxCandidates.length?0:-1;
+    $('bxTitle').textContent = `書誌メタの候補 — ${name}`;
+    renderBiblioCandidates();
+    $('bxOverlay').classList.add('open'); $('bxModal').classList.add('open');
+  }catch(e){ showBanner('メタ検索に失敗: '+e); }
 }
+function renderBiblioCandidates(){
+  const body=$('bxBody');
+  if(!bxCandidates.length){ body.innerHTML='<div class="bx-empty">候補が見つかりませんでした。ファイル名を書名に近づけると当たりやすくなります。</div>'; $('bxApply').disabled=true; return; }
+  $('bxApply').disabled=false;
+  body.innerHTML='';
+  bxCandidates.forEach((c,i)=>{
+    const authors=(c.authors||[]).join(', ');
+    const isbn=c.isbn13||c.isbn10||'';
+    const bits=[authors, c.publisher, c.published, isbn].filter(Boolean).join(' ・ ');
+    const div=document.createElement('div'); div.className='bx-item'+(i===bxSel?' sel':'');
+    div.innerHTML =
+      `<input type="radio" name="bxc" ${i===bxSel?'checked':''}>`+
+      (c.cover_url?`<img src="${esc(c.cover_url)}" alt="">`:'')+
+      `<div class="meta"><div class="bt">${esc(c.title||'(無題)')}<span class="bx-src">${esc(c.source||'')}</span></div>`+
+      `<div class="bd">${esc(bits)}</div></div>`;
+    div.onclick=()=>{ bxSel=i; renderBiblioCandidates(); };
+    body.appendChild(div);
+  });
+}
+async function applyBiblio(){
+  if(bxSel<0 || !bxCandidates[bxSel]) return;
+  try{
+    const r = await fetch('/api/biblio_apply',{method:'POST',headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({book:bxBook, out_dir:$('outDir').value||'', candidate:bxCandidates[bxSel]})});
+    const d = await r.json();
+    if(!d.ok){ showBanner(d.error||'適用に失敗しました'); return; }
+    closeBiblio(); pollAll();
+    showBanner('');
+  }catch(e){ showBanner('適用に失敗: '+e); }
+}
+function closeBiblio(){ $('bxOverlay').classList.remove('open'); $('bxModal').classList.remove('open'); }
+$('bxClose').addEventListener('click', closeBiblio);
+$('bxOverlay').addEventListener('click', closeBiblio);
+$('bxApply').addEventListener('click', applyBiblio);
 async function retryBook(name){
   try{
     const r = await fetch('/api/retry',{method:'POST',headers:{'Content-Type':'application/json'},

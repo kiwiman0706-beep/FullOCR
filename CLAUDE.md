@@ -193,11 +193,15 @@ structure engine (layout only)  ────┘      (build_document)
 - `estimate.py` — token/¥ cost estimate per AI feature from a `Document` (chars→tokens via
   `CostConfig.chars_per_token`, × model price). `rewrite` is priciest (output ≈ whole body).
   `library.py` — `scan_library` (disk→book list), `status.json` load/save/`record_ai`.
-  `biblio.py` — opt-in (`PipelineConfig.fetch_biblio`, default off; also a per-book `/api/biblio`
-  job → `batch.enrich_book`): clean the filename → Google Books search → pick the best-matching
-  volume → openBD enrich by ISBN, writing publisher/ISBN/published/pages/cover into `DocMeta`
-  (rendered into front-matter). Facts come only from the DBs (never the LLM); `fetcher`/`enricher`
-  are injectable so tests never hit the network. stdlib `urllib` only.
+  `biblio.py` — clean the filename → search **Google Books + NDL Search** (国会図書館, RSS/XML via
+  `parse_ndl_xml`) for candidates (`search_candidates`, dedup+score) → openBD enrich by ISBN, writing
+  publisher/ISBN/published/pages/cover into `DocMeta` (rendered into front-matter). Facts come only
+  from the DBs (never the LLM); providers/`fetcher`/`enricher` are injectable so tests never hit the
+  network (stdlib `urllib`+`xml.etree` only). Convert-time auto path is opt-in
+  (`PipelineConfig.fetch_biblio`, default off, uses `lookup`=best match). The per-book 📖メタ取得
+  button is **interactive**: `/api/biblio_search` (sync → threadpool) returns candidates, a dialog
+  lets the user pick/confirm, `/api/biblio_apply` → `batch.apply_biblio` writes the chosen one and
+  re-renders.
 
 ### Engine adapters are execution + parsing, not just parsing
 
