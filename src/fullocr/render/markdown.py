@@ -27,9 +27,20 @@ def _front_matter(doc: Document) -> str:
         lines.append(f"title: {m.title}")
     if m.author:
         lines.append(f"author: {m.author}")
+    # 書誌メタ（biblio 取得時のみ）。Obsidian のプロパティとして検索・Dataview に使える。
+    if m.publisher:
+        lines.append(f"publisher: {m.publisher}")
+    if m.published:
+        lines.append(f"published: {m.published}")
+    if m.isbn:
+        lines.append(f"isbn: {m.isbn}")
+    if m.cover_url:
+        lines.append(f"cover: {m.cover_url}")
+    if m.categories:
+        lines.append("categories: [" + ", ".join(m.categories) + "]")
     if m.source_pdf:
         lines.append(f"source: {m.source_pdf}")
-    lines.append(f"pages: {len(doc.pages)}")
+    lines.append(f"pages: {m.page_count or len(doc.pages)}")
     lines.append("tags: [fullocr]")
     lines.append("---")
     return "\n".join(lines)

@@ -166,6 +166,9 @@ class PipelineConfig(BaseModel):
     text_cleanup: bool = True
     # NDL の透明テキストPDF に、認識した見出しから PDF のしおり(アウトライン)を付ける。
     pdf_bookmarks: bool = True
+    # ファイル名から書誌メタ（ISBN・出版社・刊行年）をネットで取得して front-matter に入れる。
+    # ネットワークを使うため既定OFF（希望時のみ）。事実はDB由来（LLMに作らせない）。
+    fetch_biblio: bool = False
 
     # 作業ディレクトリ（中間生成物）。
     work_dir: Path = Path("work")

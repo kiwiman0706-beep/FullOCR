@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from .. import __version__
 from .. import estimate as estimate_mod
 from .. import library as library_mod
-from ..batch import postprocess_book, process_pdf
+from ..batch import enrich_book, postprocess_book, process_pdf
 from ..config import PipelineConfig, RenderConfig
 from ..ir import Document
 from .jobs import Job, JobManager
@@ -118,10 +118,14 @@ def _run_one(job: Job) -> None:
     def _on_output(line: str) -> None:
         manager.log_line(job.id, line)
 
-    if kind == "postprocess":
+    if kind in ("postprocess", "biblio"):
         name = job.meta["name"]
         try:
-            postprocess_book(cfg, name, job.meta["features"], on_step=_on_step, on_output=_on_output)
+            if kind == "biblio":
+                enrich_book(cfg, name, on_step=_on_step, on_output=_on_output)
+            else:
+                postprocess_book(cfg, name, job.meta["features"],
+                                 on_step=_on_step, on_output=_on_output)
         except Exception as e:
             log_path = _log_failure(Path(name), e)
             if log_path is not None:
@@ -177,6 +181,7 @@ async def convert(
     text_cleanup: bool = Form(True),
     hide_toc_pages: bool = Form(False),
     pdf_bookmarks: bool = Form(True),
+    fetch_biblio: bool = Form(False),
     llm_structure: bool = Form(False),
     llm_anomaly: bool = Form(False),
     llm_rewrite: bool = Form(False),
@@ -191,6 +196,7 @@ async def convert(
         cfg.out_dir = Path(out_dir.strip())
     cfg.text_cleanup = text_cleanup
     cfg.pdf_bookmarks = pdf_bookmarks
+    cfg.fetch_biblio = fetch_biblio
     cfg.render = RenderConfig(
         drop_headers_footers=drop_headers_footers,
         obsidian_wiklinks=obsidian_wiklinks,
@@ -302,6 +308,21 @@ async def postprocess(request: Request) -> dict:
     job_id = manager.enqueue(
         filename=name, path=name, output_dir=str(cfg.out_dir / name),
         meta={"cfg": cfg, "kind": "postprocess", "name": name, "features": features},
+    )
+    return {"ok": True, "job_id": job_id}
+
+
+@app.post("/api/biblio")
+async def biblio(request: Request) -> dict:
+    """既存書籍に書誌メタ（ISBN・出版社等）をネットで取得して付与する（ジョブ実行）。"""
+    data = await request.json()
+    name = (data.get("book") or "").strip()
+    cfg = _library_cfg(data.get("out_dir", ""))
+    if not name or not (cfg.work_dir / name / "ir.json").exists():
+        return {"ok": False, "error": "中間データ(ir.json)がありません"}
+    job_id = manager.enqueue(
+        filename=name, path=name, output_dir=str(cfg.out_dir / name),
+        meta={"cfg": cfg, "kind": "biblio", "name": name},
     )
     return {"ok": True, "job_id": job_id}
 

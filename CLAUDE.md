@@ -193,6 +193,11 @@ structure engine (layout only)  ────┘      (build_document)
 - `estimate.py` — token/¥ cost estimate per AI feature from a `Document` (chars→tokens via
   `CostConfig.chars_per_token`, × model price). `rewrite` is priciest (output ≈ whole body).
   `library.py` — `scan_library` (disk→book list), `status.json` load/save/`record_ai`.
+  `biblio.py` — opt-in (`PipelineConfig.fetch_biblio`, default off; also a per-book `/api/biblio`
+  job → `batch.enrich_book`): clean the filename → Google Books search → pick the best-matching
+  volume → openBD enrich by ISBN, writing publisher/ISBN/published/pages/cover into `DocMeta`
+  (rendered into front-matter). Facts come only from the DBs (never the LLM); `fetcher`/`enricher`
+  are injectable so tests never hit the network. stdlib `urllib` only.
 
 ### Engine adapters are execution + parsing, not just parsing
 

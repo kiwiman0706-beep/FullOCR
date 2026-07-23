@@ -129,6 +129,15 @@ def build_ir_for_pdf(
     # 印刷された目次ページの範囲を推定（無料・規則ベース）。非表示化・突き合わせの起点。
     doc.meta.toc_pages = tocdetect_mod.detect_toc_pages(doc)
 
+    # 書誌メタ取得（希望時のみ・ネット）。ファイル名から ISBN・出版社等を引く。
+    if cfg.fetch_biblio:
+        step(80, "書誌メタ（ISBN・出版社）を取得中…")
+        from . import biblio as biblio_mod
+
+        bm = biblio_mod.lookup(stem)
+        if bm is not None:
+            biblio_mod.apply_to_doc(doc, bm)
+
     # ルールベース本文整形（無料・既定ON。ページ境界の改行連結・ノンブル除去）。
     if cfg.text_cleanup:
         step(78, "本文を整形中（改行・ノンブル）…")
@@ -319,6 +328,38 @@ def postprocess_book(
 
     step(100, "完了")
     return {"applied": applied}
+
+
+def enrich_book(cfg: PipelineConfig, name: str, *, on_step=None, on_output=None) -> dict:
+    """既存書籍にネットで書誌メタ（ISBN・出版社等）を取得して付与・再レンダリングする。
+
+    ファイル名（書名）から Google Books / openBD を引き、front-matter に反映。OCRや
+    レイアウトは触らない。見つからなければ found=False を返す（エラーにはしない）。
+    """
+    from . import biblio as biblio_mod
+    from . import library
+
+    step = on_step or _noop_step
+    ir_path = cfg.work_dir / name / "ir.json"
+    if not ir_path.exists():
+        raise FileNotFoundError(f"中間データが見つかりません: {ir_path}（先に通常変換が必要）")
+
+    doc = Document.load(ir_path)
+    step(20, "書誌メタ（ISBN・出版社）を検索中…")
+    bm = biblio_mod.lookup(name)
+    if bm is None:
+        step(100, "該当なし")
+        return {"found": False}
+    biblio_mod.apply_to_doc(doc, bm)
+
+    step(80, "保存・再レンダリング中…")
+    doc.save(ir_path)
+    out_book = cfg.out_dir / name
+    render_document(doc, out_book, cfg.render)
+    _write_structure_review(doc, out_book)
+    library.record_ai(cfg, name, "biblio", None)
+    step(100, "完了")
+    return {"found": True, "isbn": bm.isbn13 or bm.isbn10, "publisher": bm.publisher}
 
 
 def render_from_ir(ir_path: str | Path, cfg: PipelineConfig, out_name: str | None = None) -> Path:

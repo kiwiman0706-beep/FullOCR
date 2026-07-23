@@ -119,6 +119,13 @@ class DocMeta(BaseModel):
     title: str | None = None
     author: str | None = None
     source_pdf: str | None = None
+    # 書誌メタ（biblio.py がネットから取得。既定は空）。front-matter に出力される。
+    publisher: str | None = None
+    published: str | None = None
+    isbn: str | None = None
+    page_count: int | None = None
+    categories: list[str] = Field(default_factory=list)
+    cover_url: str | None = None
     # LLM 構造化パスが生成した構成評価レポート（あれば _structure_review.md に出力）。
     structure_review: str | None = None
     # 印刷された「目次」ページのページ番号（tocdetect が推定）。非表示化・LLMへの
