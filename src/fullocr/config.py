@@ -111,6 +111,9 @@ class StructureLLMConfig(BaseModel):
     rewrite_text: bool = False
     # 挿絵の代替テキスト(alt)をマルチモーダルで生成（検索性向上。画像トークン消費）。
     figure_alt_text: bool = False
+    # 見出し階層付けの際、印刷目次ページ(DocMeta.toc_pages)の「画像そのもの」を
+    # マルチモーダルLLMに読ませ、正式な目次テキストを参照にする（OCR誤りに強い）。
+    toc_image_reference: bool = False
 
 
 class CostConfig(BaseModel):

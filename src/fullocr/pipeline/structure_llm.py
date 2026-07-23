@@ -98,6 +98,56 @@ _SYSTEM = (
     "沿った見出しレベルを割り当てます。必ず指定された JSON のみを出力します。"
 )
 
+_TOC_IMAGE_PROMPT = (
+    "これは書籍の「目次」ページの画像です。印刷されている目次を、階層（部・章・節・項の"
+    "深さ）を保ったままテキストに書き起こしてください。各項目はインデントで階層を表し、"
+    "分かる場合は行末にページ番号を付けてください。前置き・説明は不要、目次本体のみ。"
+)
+
+
+def _toc_page_images(doc: Document, max_pages: int = 4) -> list[bytes]:
+    """DocMeta.toc_pages のページ画像を PNG バイト列で返す（マルチモーダル送付用）。"""
+    try:
+        from PIL import Image
+    except ImportError:
+        return []
+    wanted = set(doc.meta.toc_pages or [])
+    if not wanted:
+        return []
+    out: list[bytes] = []
+    for page in doc.pages:
+        if page.number not in wanted or not page.image_path:
+            continue
+        if not Path(page.image_path).exists():
+            continue
+        try:
+            with Image.open(page.image_path) as im:
+                buf = io.BytesIO()
+                im.convert("RGB").save(buf, format="PNG")
+                out.append(buf.getvalue())
+        except Exception:  # noqa: BLE001 - 画像1枚の失敗で全体を止めない
+            continue
+        if len(out) >= max_pages:
+            break
+    return out
+
+
+def extract_toc_from_images(doc: Document, client: LLMClient) -> str | None:
+    """印刷目次ページの画像を LLM に読ませ、目次テキストを書き起こす。
+
+    toc_pages が無い / ページ画像が無い / クライアントが画像非対応 なら None。
+    """
+    if not hasattr(client, "generate_with_images"):
+        return None
+    images = _toc_page_images(doc)
+    if not images:
+        return None
+    try:
+        text = client.generate_with_images(_TOC_IMAGE_PROMPT, images, system=_SYSTEM)  # type: ignore[attr-defined]
+    except Exception:  # noqa: BLE001
+        return None
+    return (text or "").strip() or None
+
 
 def build_heading_prompt(title: str, entries: list[dict], reference: str) -> str:
     """見出し階層付与プロンプト。JSON のみを返すよう指示する。"""
@@ -197,13 +247,22 @@ def apply_hierarchy(doc: Document, decisions: dict[int, tuple[int | None, bool]]
 
 
 def assign_hierarchy(doc: Document, client: LLMClient, cfg: StructureLLMConfig) -> int:
-    """見出し階層を LLM で付与し直す。失敗時は 0（no-op）。"""
+    """見出し階層を LLM で付与し直す。失敗時は 0（no-op）。
+
+    cfg.toc_image_reference が真なら、印刷目次ページの画像を LLM に読ませた目次を
+    参照に使う（OCR誤りに強い）。取得できなければ従来の巻頭テキストにフォールバック。
+    """
     entries = _heading_entries(doc, cfg.snippet_chars)
     if not entries:
         return 0
-    prompt = build_heading_prompt(
-        doc.meta.title or "（無題）", entries, _reference_head_text(doc, cfg.reference_head_chars)
-    )
+    reference = None
+    if cfg.toc_image_reference:
+        toc = extract_toc_from_images(doc, client)
+        if toc:
+            reference = "（印刷目次ページの画像から読み取り）\n" + toc
+    if reference is None:
+        reference = _reference_head_text(doc, cfg.reference_head_chars)
+    prompt = build_heading_prompt(doc.meta.title or "（無題）", entries, reference)
     try:
         resp = client.generate(prompt, system=_SYSTEM)
     except Exception:  # noqa: BLE001 - LLM失敗でパイプラインを止めない

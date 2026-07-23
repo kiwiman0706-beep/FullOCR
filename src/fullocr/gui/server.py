@@ -18,8 +18,8 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, Form, Request, Response, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 
 from .. import __version__
 from .. import estimate as estimate_mod
@@ -181,6 +181,7 @@ async def convert(
     llm_anomaly: bool = Form(False),
     llm_rewrite: bool = Form(False),
     llm_figure_alt: bool = Form(False),
+    llm_toc_image: bool = Form(False),
     llm_api_key: str = Form(""),
 ) -> dict:
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -202,6 +203,7 @@ async def convert(
         cfg.structure_llm.anomaly_check = llm_anomaly
         cfg.structure_llm.rewrite_text = llm_rewrite
         cfg.structure_llm.figure_alt_text = llm_figure_alt
+        cfg.structure_llm.toc_image_reference = llm_toc_image
         if llm_api_key.strip():
             cfg.structure_llm.api_key = llm_api_key.strip()
 
@@ -295,11 +297,58 @@ async def postprocess(request: Request) -> dict:
     if key:
         cfg.structure_llm.api_key = key
     cfg.structure_llm.enabled = True
+    # 目次画像参照は保存設定のトグルに従う（structure 実行時に効く）。
+    cfg.structure_llm.toc_image_reference = bool(_saved_settings().get("opt", {}).get("opt-llm-tocimg"))
     job_id = manager.enqueue(
         filename=name, path=name, output_dir=str(cfg.out_dir / name),
         meta={"cfg": cfg, "kind": "postprocess", "name": name, "features": features},
     )
     return {"ok": True, "job_id": job_id}
+
+
+def _safe_child(base: Path, rel: str) -> Path | None:
+    """base 配下に収まるパスだけ返す（パストラバーサル防止）。"""
+    try:
+        p = (base / rel).resolve()
+        base_r = base.resolve()
+    except OSError:
+        return None
+    if p == base_r or base_r in p.parents:
+        return p
+    return None
+
+
+@app.post("/api/preview")
+async def preview(request: Request) -> dict:
+    """生成済み Markdown をアプリ内プレビュー用に返す（ファイル一覧＋本文）。"""
+    data = await request.json()
+    name = (data.get("book") or "").strip()
+    cfg = _library_cfg(data.get("out_dir", ""))
+    out_book = cfg.out_dir / name
+    if not name or not out_book.is_dir():
+        return {"ok": False, "error": "出力が見つかりません（先に変換が必要）"}
+    files = sorted(p.name for p in out_book.glob("*.md"))
+    if not files:
+        return {"ok": False, "error": "Markdown がまだありません"}
+    fname = (data.get("file") or "").strip()
+    if fname not in files:
+        fname = "00_index.md" if "00_index.md" in files else files[0]
+    target = _safe_child(out_book, fname)
+    if target is None or not target.is_file():
+        return {"ok": False, "error": "ファイルが見つかりません"}
+    return {"ok": True, "files": files, "file": fname,
+            "content": target.read_text(encoding="utf-8")}
+
+
+@app.get("/api/asset", response_model=None)
+def asset(book: str, path: str, out_dir: str = "") -> Response:
+    """プレビュー内の画像等を配信（out_dir/book 配下限定）。"""
+    cfg = _library_cfg(out_dir)
+    out_book = cfg.out_dir / book
+    target = _safe_child(out_book, path)
+    if target is None or not target.is_file():
+        return PlainTextResponse("not found", status_code=404)
+    return FileResponse(str(target))
 
 
 @app.post("/api/retry")

@@ -31,3 +31,24 @@ def test_index_is_not_cached_and_shows_version_slot():
     assert r.headers.get("cache-control") == "no-store"
     # バージョン表示用のスロットがある
     assert 'id="appVersion"' in r.text
+
+
+def test_preview_and_asset(tmp_path):
+    book = "本X"
+    out_book = tmp_path / book
+    (out_book / "attachments").mkdir(parents=True)
+    (out_book / "00_index.md").write_text("# 見出し\n\n![[attachments/a.png]]\n", encoding="utf-8")
+    (out_book / "attachments" / "a.png").write_bytes(b"\x89PNG\r\n")
+
+    client = TestClient(app)
+    r = client.post("/api/preview", json={"book": book, "out_dir": str(tmp_path)})
+    d = r.json()
+    assert d["ok"] is True
+    assert "00_index.md" in d["files"]
+    assert "見出し" in d["content"]
+
+    # 資産配信 + パストラバーサル拒否
+    ok = client.get("/api/asset", params={"book": book, "out_dir": str(tmp_path), "path": "attachments/a.png"})
+    assert ok.status_code == 200
+    bad = client.get("/api/asset", params={"book": book, "out_dir": str(tmp_path), "path": "../../etc/passwd"})
+    assert bad.status_code == 404

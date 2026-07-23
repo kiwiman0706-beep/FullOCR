@@ -136,7 +136,10 @@ structure engine (layout only)  ────┘      (build_document)
   pricey one), and `figure_alt_text` (multimodal: crops each `FIGURE` from the page image, asks the
   model for an alt/description stored on the block and rendered as a searchable caption under the image).
   The vision path uses an optional `describe_image(bytes, prompt)` method on the client (checked via
-  `hasattr`), implemented by `GeminiClient`.
+  `hasattr`), implemented by `GeminiClient`. `toc_image_reference` (opt-in) sends the detected printed
+  目次 page *images* (`DocMeta.toc_pages` → `work/pages` PNGs) to the multimodal model via
+  `client.generate_with_images(prompt, [bytes])` and uses the transcribed 目次 as the reference for
+  `assign_hierarchy` (stronger than OCR text; falls back to head text if unavailable).
 - `render/markdown.py` + `render/toc.py` — walks the IR to produce `00_index.md` (front-matter +
   TOC) plus, if `RenderConfig.split_by_heading_level` is set, one Markdown file per chapter; crops
   figure regions out of rendered page images (needs `Pillow` + a `Page.image_path`, scaled by
@@ -179,7 +182,11 @@ structure engine (layout only)  ────┘      (build_document)
   re-renders; **no re-OCR**), plus `/api/retry` (re-run a failed convert from the source PDF path
   kept in `status.json`). The JobManager runner (`_run_one`) branches on `meta["kind"]`
   (`"convert"` vs `"postprocess"`). Conversion options + AI defaults + API key live in a settings
-  drawer (persisted via `/api/settings`); per-book AI actions live in the table. The engine's raw
+  drawer (persisted via `/api/settings`); per-book AI actions live in the table. A 👁 preview
+  (`/api/preview` returns the book's `*.md` list + a file's raw text; `/api/asset` serves images from
+  `out_dir/<book>` with a path-traversal guard) renders the generated Markdown in-app via a compact
+  client-side md→HTML renderer (handles `%%`-hidden TOC, wikilink images/links, headings/lists/code).
+  The engine's raw
   stdout/Docling logs stream live to the console via `on_output` (`pipeline/proc.run_streaming` +
   a logging handler for the in-process Docling path).
 

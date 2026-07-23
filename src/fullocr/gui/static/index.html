@@ -121,6 +121,30 @@
   .opt .d{font-size:12px; color:var(--ink-soft);}
   .field{width:100%; padding:8px 10px; font-size:13px; border:1px solid var(--line); border-radius:6px;
     background:var(--panel); color:var(--ink); margin-top:6px;}
+
+  /* MDプレビュー */
+  .pv-overlay{position:fixed; inset:0; background:rgba(0,0,0,.4); display:none; z-index:20;}
+  .pv-overlay.open{display:block;}
+  .pv-modal{position:fixed; inset:4vh 4vw; background:var(--panel); border-radius:12px; z-index:21;
+    display:none; flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,.3);}
+  .pv-modal.open{display:flex;}
+  .pv-head{display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--line);}
+  .pv-head .title{font-weight:700; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .pv-head select{padding:5px 8px; font-size:12px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--ink);}
+  .pv-head .sp{flex:1;}
+  .pv-body{padding:20px 26px; overflow:auto; line-height:1.7;}
+  .pv-body h1,.pv-body h2,.pv-body h3,.pv-body h4{line-height:1.3; margin:1.1em 0 .5em;}
+  .pv-body h1{font-size:22px; border-bottom:1px solid var(--line); padding-bottom:.2em;}
+  .pv-body h2{font-size:18px;} .pv-body h3{font-size:15px;} .pv-body h4{font-size:14px; color:var(--ink-soft);}
+  .pv-body img{max-width:100%; height:auto; border:1px solid var(--line); border-radius:6px; margin:6px 0;}
+  .pv-body pre{background:#2b2622; color:#f0e9df; padding:10px 12px; border-radius:6px; overflow-x:auto; font-size:12px;}
+  .pv-body code{background:var(--accent-soft); padding:1px 5px; border-radius:4px; font-size:.92em;}
+  .pv-body pre code{background:none; padding:0;}
+  .pv-body blockquote{border-left:3px solid var(--line); margin:.6em 0; padding:.2em 0 .2em 12px; color:var(--ink-soft);}
+  .pv-body ul,.pv-body ol{padding-left:1.4em;}
+  .pv-body a{color:var(--accent); cursor:pointer;}
+  .pv-body .wikilink{color:var(--accent); cursor:pointer; text-decoration:underline;}
+  .pv-body table{margin:.6em 0;} .pv-body em{color:var(--ink-soft);}
 </style>
 </head>
 <body>
@@ -197,12 +221,26 @@
 
   <h3>AI（Gemini）— 新規変換で既定ONにする処理</h3>
   <div class="opt"><input type="checkbox" id="opt-llm"><div><label for="opt-llm">見出し構造をAIで整える</label><div class="d">H1〜H6の階層を目次に沿って付け直し、構成レビューも出力。</div></div></div>
+  <div class="opt" style="padding-left:22px;"><input type="checkbox" id="opt-llm-tocimg"><div><label for="opt-llm-tocimg">目次ページを画像でAIに読ませる（精度↑）</label><div class="d">印刷目次のページ画像をそのままGeminiに渡し、正式な目次として参照（OCR誤りに強い）。「見出し構造」ON時に有効。</div></div></div>
   <div class="opt"><input type="checkbox" id="opt-llm-rewrite"><div><label for="opt-llm-rewrite">本文をAIでリライト整形</label><div class="d">OCR由来の改行・誤字を整える。出力が多く割高。</div></div></div>
   <div class="opt"><input type="checkbox" id="opt-llm-alt"><div><label for="opt-llm-alt">挿絵の代替テキスト生成</label><div class="d">図をAIが説明。スマホ検索に有効。</div></div></div>
   <div class="opt"><input type="checkbox" id="opt-llm-anomaly"><div><label for="opt-llm-anomaly">本文の異常チェック</label><div class="d">変な改行・ページ飛びを検出しレポートに追記。</div></div></div>
   <input type="password" class="field" id="llmKey" placeholder="Gemini APIキー（環境変数 GEMINI_API_KEY があれば空欄可）" />
   <div class="opt" style="margin-top:6px;"><input type="checkbox" id="opt-remember"><label for="opt-remember">このキー・設定をこのPCに記憶（ローカルのみ・平文）</label></div>
   <div class="row"><span class="grow"></span><button class="primary" id="saveSettings">保存</button></div>
+</div>
+
+<!-- MDプレビュー -->
+<div class="pv-overlay" id="pvOverlay"></div>
+<div class="pv-modal" id="pvModal">
+  <div class="pv-head">
+    <span class="title" id="pvTitle">プレビュー</span>
+    <select id="pvFile"></select>
+    <span class="sp"></span>
+    <button class="btn small" id="pvOpenFolder">📂 フォルダ</button>
+    <button class="btn small" id="pvClose">× 閉じる</button>
+  </div>
+  <div class="pv-body" id="pvBody"></div>
 </div>
 
 <script>
@@ -220,7 +258,7 @@ const AI_FEATURES = [
 ];
 const OPT_IDS = ['opt-headers','opt-wiklinks','opt-frontmatter','opt-split','opt-skip','opt-cleanup',
                  'opt-hidetoc','opt-bookmarks',
-                 'opt-llm','opt-llm-rewrite','opt-llm-alt','opt-llm-anomaly'];
+                 'opt-llm','opt-llm-rewrite','opt-llm-alt','opt-llm-anomaly','opt-llm-tocimg'];
 
 let pendingFiles = [];
 let paused = false;
@@ -228,6 +266,7 @@ let paused = false;
 const estCache = {};      // name -> {feature: {jpy, applicable, done}}
 const checkedCache = {};  // name -> Set(feature)
 const expanded = new Set();
+let lastBooks = [];       // 直近のライブラリ一覧（プレビューのフォルダ解決用）
 
 // ---- 起動時: バージョン・保存設定の読み込み ----
 window.addEventListener('DOMContentLoaded', async () => {
@@ -313,6 +352,7 @@ $('startBtn').addEventListener('click', async () => {
   form.append('llm_anomaly', $('opt-llm-anomaly').checked);
   form.append('llm_rewrite', $('opt-llm-rewrite').checked);
   form.append('llm_figure_alt', $('opt-llm-alt').checked);
+  form.append('llm_toc_image', $('opt-llm-tocimg').checked);
   form.append('llm_api_key', $('llmKey').value || '');
   persistSettings();
   try {
@@ -423,6 +463,7 @@ function detailRow(book, span){
 }
 
 function renderLibrary(books){
+  lastBooks = books;
   const body=$('libBody'); body.innerHTML='';
   $('libCount').textContent = books.length ? `(${books.length}冊)` : '';
   for(const book of books){
@@ -435,8 +476,9 @@ function renderLibrary(books){
     tr.appendChild(xtd);
     const ntd=document.createElement('td');
     ntd.innerHTML = `<span class="bookname">${esc(book.name)}</span>` +
-      (st.render==='done' ? `<span class="openlink" data-open="${esc(book.out_dir)}">📂開く</span>` : '');
+      (st.render==='done' ? `<span class="openlink" data-preview="${esc(book.name)}">👁プレビュー</span><span class="openlink" data-open="${esc(book.out_dir)}">📂開く</span>` : '');
     ntd.querySelectorAll('[data-open]').forEach(el=>el.addEventListener('click',ev=>{ev.stopPropagation(); openFolder(el.getAttribute('data-open'));}));
+    ntd.querySelectorAll('[data-preview]').forEach(el=>el.addEventListener('click',ev=>{ev.stopPropagation(); openPreview(el.getAttribute('data-preview'));}));
     tr.appendChild(ntd);
     tr.appendChild(stageCell(st.ocr));
     tr.appendChild(stageCell(st.layout));
@@ -478,6 +520,82 @@ function renderLibrary(books){
     if(expanded.has(book.name)) body.appendChild(detailRow(book, 6));
   }
 }
+
+// ---- MDプレビュー ----
+let pvBook = '';
+function assetUrl(book, path){
+  return `/api/asset?book=${encodeURIComponent(book)}&out_dir=${outDirParam()}&path=${encodeURIComponent(path)}`;
+}
+function inlineMd(s, book){
+  // s は既に HTML エスケープ済みの1行。インライン記法を置換する。
+  // 画像 ![[wikilink]] / ![alt](src)
+  s = s.replace(/!\[\[([^\]]+)\]\]/g, (m,p)=>`<img src="${assetUrl(book,p.trim())}" alt="">`);
+  s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (m,alt,src)=>{
+    const u = /^https?:|^data:/.test(src) ? src : assetUrl(book, src.trim());
+    return `<img src="${u}" alt="${alt}">`;
+  });
+  // 内部リンク [[target|表示]] / [[target]] → 同じ本の別ファイルへ切替
+  s = s.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (m,t,disp)=>{
+    const file = t.split('#')[0].trim();
+    const label = (disp||t).trim();
+    return `<span class="wikilink" data-file="${file}.md">${label}</span>`;
+  });
+  // 通常リンク [text](url)
+  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m,t,u)=>`<a href="${u}" target="_blank" rel="noreferrer">${t}</a>`);
+  s = s.replace(/`([^`]+)`/g, (m,t)=>`<code>${t}</code>`);
+  s = s.replace(/\*\*([^*]+)\*\*/g, (m,t)=>`<strong>${t}</strong>`);
+  s = s.replace(/(^|[^*])\*([^*]+)\*/g, (m,pre,t)=>`${pre}<em>${t}</em>`);
+  return s;
+}
+function mdToHtml(md, book){
+  md = md.replace(/%%[\s\S]*?%%/g, '');  // Obsidianコメント(目次非表示)は隠す
+  const lines = md.split('\n');
+  const out=[]; let i=0; let inCode=false, listType=null;
+  const closeList=()=>{ if(listType){ out.push(listType==='ul'?'</ul>':'</ol>'); listType=null; } };
+  while(i<lines.length){
+    let ln = lines[i];
+    if(/^```/.test(ln)){
+      if(!inCode){ closeList(); out.push('<pre><code>'); inCode=true; }
+      else { out.push('</code></pre>'); inCode=false; }
+      i++; continue;
+    }
+    if(inCode){ out.push(esc(ln)); i++; continue; }
+    const esced = esc(ln);
+    let m;
+    if(/^\s*$/.test(ln)){ closeList(); i++; continue; }
+    if((m=ln.match(/^(#{1,6})\s+(.*)$/))){ closeList(); const lv=m[1].length; out.push(`<h${lv}>${inlineMd(esc(m[2]),book)}</h${lv}>`); i++; continue; }
+    if(/^\s*([-*])\s+/.test(ln)){ if(listType!=='ul'){ closeList(); out.push('<ul>'); listType='ul'; } out.push(`<li>${inlineMd(esced.replace(/^\s*[-*]\s+/,''),book)}</li>`); i++; continue; }
+    if(/^\s*\d+\.\s+/.test(ln)){ if(listType!=='ol'){ closeList(); out.push('<ol>'); listType='ol'; } out.push(`<li>${inlineMd(esced.replace(/^\s*\d+\.\s+/,''),book)}</li>`); i++; continue; }
+    if(/^\s*>\s?/.test(ln)){ closeList(); out.push(`<blockquote>${inlineMd(esced.replace(/^\s*>\s?/,''),book)}</blockquote>`); i++; continue; }
+    if(/^\s*(-{3,}|\*{3,})\s*$/.test(ln)){ closeList(); out.push('<hr>'); i++; continue; }
+    closeList(); out.push(`<p>${inlineMd(esced,book)}</p>`); i++;
+  }
+  closeList(); if(inCode) out.push('</code></pre>');
+  return out.join('\n');
+}
+async function loadPreview(book, file){
+  try{
+    const r = await fetch('/api/preview',{method:'POST',headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({book, out_dir:$('outDir').value||'', file:file||''})});
+    const d = await r.json();
+    if(!d.ok){ showBanner(d.error||'プレビューできません'); return false; }
+    pvBook = book;
+    $('pvTitle').textContent = book;
+    const sel=$('pvFile'); sel.innerHTML='';
+    d.files.forEach(f=>{ const o=document.createElement('option'); o.value=f; o.textContent=f; if(f===d.file)o.selected=true; sel.appendChild(o); });
+    const body=$('pvBody'); body.innerHTML = mdToHtml(d.content, book); body.scrollTop=0;
+    body.querySelectorAll('.wikilink[data-file]').forEach(el=>el.addEventListener('click',()=>loadPreview(book, el.getAttribute('data-file'))));
+    return true;
+  }catch(e){ showBanner('プレビュー失敗: '+e); return false; }
+}
+async function openPreview(book){
+  if(await loadPreview(book,'')){ $('pvOverlay').classList.add('open'); $('pvModal').classList.add('open'); }
+}
+function closePreview(){ $('pvOverlay').classList.remove('open'); $('pvModal').classList.remove('open'); }
+$('pvClose').addEventListener('click', closePreview);
+$('pvOverlay').addEventListener('click', closePreview);
+$('pvFile').addEventListener('change', e=>loadPreview(pvBook, e.target.value));
+$('pvOpenFolder').addEventListener('click', ()=>{ const b=pvBook; const book=(lastBooks.find(x=>x.name===b)); if(book) openFolder(book.out_dir); });
 
 // ---- ログコンソール ----
 const consoleEl=$('console');

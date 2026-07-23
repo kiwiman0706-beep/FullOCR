@@ -35,9 +35,16 @@ class GeminiClient:
 
     def describe_image(self, image_bytes: bytes, prompt: str) -> str:
         """画像＋プロンプトで説明を生成（挿絵の代替テキスト用・マルチモーダル）。"""
+        return self.generate_with_images(prompt, [image_bytes])
+
+    def generate_with_images(self, prompt: str, images: list[bytes], *, system: str | None = None) -> str:
+        """複数画像＋プロンプトで1ターン生成（目次ページ画像の読み取り等）。"""
         client = self._ensure()
         from google.genai import types  # 遅延 import
 
-        part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
-        resp = client.models.generate_content(model=self.model, contents=[prompt, part])
+        head = prompt if system is None else f"{system}\n\n{prompt}"
+        contents: list = [head]
+        for data in images:
+            contents.append(types.Part.from_bytes(data=data, mime_type="image/png"))
+        resp = client.models.generate_content(model=self.model, contents=contents)
         return (getattr(resp, "text", "") or "").strip()

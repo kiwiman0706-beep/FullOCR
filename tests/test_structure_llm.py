@@ -149,6 +149,35 @@ def test_describe_figures_sets_alt_text(tmp_path):
     assert doc.pages[0].blocks[0].text == "実験装置の写真"
 
 
+class FakeTocVisionClient(FakeClient):
+    def __init__(self, responses):
+        super().__init__(responses)
+        self.image_calls = 0
+
+    def generate_with_images(self, prompt, images, *, system=None):
+        self.image_calls += 1
+        self.last_images = images
+        return "第1章 総論 …… 1\n  1.1 定義 …… 2\n第2章 各論 …… 25"
+
+
+def test_extract_toc_from_images(tmp_path):
+    from PIL import Image
+
+    img = tmp_path / "page.png"
+    Image.new("RGB", (600, 800), "white").save(img)
+    page = Page(number=3, width=600, height=800, image_path=str(img))
+    doc = Document(meta=DocMeta(title="t", toc_pages=[3]), pages=[page])
+    client = FakeTocVisionClient([])
+    toc = sl.extract_toc_from_images(doc, client)
+    assert client.image_calls == 1
+    assert "第2章 各論" in toc
+
+
+def test_extract_toc_none_without_toc_pages():
+    doc = Document(meta=DocMeta(title="t", toc_pages=[]), pages=[Page(number=1, width=10, height=10)])
+    assert sl.extract_toc_from_images(doc, FakeTocVisionClient([])) is None
+
+
 def test_describe_figures_noop_without_vision():
     page = Page(number=1, width=500, height=700)
     page.blocks = [Block(id="f1", bbox=BBox(x0=0, y0=0, x1=10, y1=10),
