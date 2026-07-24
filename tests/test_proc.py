@@ -27,3 +27,12 @@ def test_blank_lines_are_not_forwarded():
     lines: list[str] = []
     run_streaming('printf "x\\n\\n\\ny\\n"', on_output=lines.append)
     assert lines == ["x", "y"]  # 空行はコールバックに流さない
+
+
+def test_utf8_output_is_decoded_not_crashing():
+    # エンジンは UTF-8 の日本語ログを吐く。Windows 既定(cp932)で読むと落ちるので
+    # UTF-8 固定で読めていること（＝日本語がそのまま届く）を確認する。
+    lines: list[str] = []
+    rc, tail = run_streaming(r'printf "\346\227\245\346\234\254\n"', on_output=lines.append)
+    assert rc == 0
+    assert lines == ["日本"]

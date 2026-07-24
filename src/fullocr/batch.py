@@ -13,6 +13,7 @@ NDL / 構造エンジンの実行はユーザー環境（Windows, CPU）で走�
 
 from __future__ import annotations
 
+import re
 import shutil
 import time
 from pathlib import Path
@@ -67,6 +68,20 @@ def render_pdf_pages(pdf_path: str | Path, out_dir: Path, dpi: int = 200) -> lis
     return paths
 
 
+_UNSAFE_NAME = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+
+def safe_book_name(stem: str) -> str:
+    """PDF名から work/out のフォルダ名を作る（ファイルシステム安全化）。
+
+    Windows はディレクトリ名の末尾スペース/ドットを扱えず、mkdir と参照でズレて
+    `WinError 3 パスが見つかりません` になる（自炊ファイル名は末尾に空白を含みがち）。
+    禁止文字を _ に、末尾の空白・ドットを除去する。IR の title には元名を使う。
+    """
+    s = _UNSAFE_NAME.sub("_", stem).rstrip(" .").strip()
+    return s or "book"
+
+
 def _noop_step(percent: float, label: str) -> None:
     """進捗コールバック未指定時のデフォルト（何もしない）。"""
 
@@ -92,7 +107,8 @@ def build_ir_for_pdf(
     """
     step = on_step or _noop_step
     pdf_path = Path(pdf_path)
-    stem = pdf_path.stem
+    stem = safe_book_name(pdf_path.stem)   # フォルダ名は安全化（末尾空白等）
+    title = pdf_path.stem.strip()          # 表示用の書名は元のまま
     work = cfg.work_dir / stem
     ndl_out = work / "ndl"
     engine_out = work / cfg.engine
@@ -117,7 +133,7 @@ def build_ir_for_pdf(
     layout_pages: list[LayoutPage] = load_engine(engine_out, engine_cfg.json_glob)
 
     step(70, "テキストとレイアウトを統合中…")
-    meta = DocMeta(title=stem, source_pdf=str(pdf_path))
+    meta = DocMeta(title=title, source_pdf=str(pdf_path))
     doc = merge_mod.build_document(ndl_pages, layout_pages, cfg, meta=meta)
 
     # ページ画像を IR に紐付け（あれば）。
@@ -170,24 +186,25 @@ def process_pdf(
     """
     step = on_step or _noop_step
     pdf_path = Path(pdf_path)
+    book = safe_book_name(pdf_path.stem)   # build_ir_for_pdf と同じ規則でフォルダ名を決める
     doc = build_ir_for_pdf(
         pdf_path, cfg, run_engines=run_engines, on_step=on_step, on_output=on_output
     )
 
     # 透明テキストPDFの名前を先に控える（見出し→PDFページリンクの張り先になる）。
-    ndl_out = cfg.work_dir / pdf_path.stem / "ndl"
+    ndl_out = cfg.work_dir / book / "ndl"
     transparent_pdf = _first_glob(ndl_out, cfg.ndl.pdf_glob)
     if transparent_pdf is not None:
         doc.meta.pdf_name = transparent_pdf.name
 
     # IR を保存（GUI 補正の入力になる）。
     step(90, "中間データ(IR)を保存中…")
-    ir_path = cfg.work_dir / pdf_path.stem / "ir.json"
+    ir_path = cfg.work_dir / book / "ir.json"
     ir_path.parent.mkdir(parents=True, exist_ok=True)
     doc.save(ir_path)
 
     step(93, "Markdownを書き出し中…")
-    out_book = cfg.out_dir / pdf_path.stem
+    out_book = cfg.out_dir / book
     render_document(doc, out_book, cfg.render)
     _write_structure_review(doc, out_book)
 

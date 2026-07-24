@@ -25,7 +25,7 @@ from .. import __version__
 from .. import estimate as estimate_mod
 from .. import library as library_mod
 from .. import biblio as biblio_mod
-from ..batch import apply_biblio, postprocess_book, process_pdf
+from ..batch import apply_biblio, postprocess_book, process_pdf, safe_book_name
 from ..config import PipelineConfig, RenderConfig
 from ..ir import Document
 from .jobs import Job, JobManager
@@ -133,7 +133,7 @@ def _run_one(job: Job) -> None:
 
     # kind == "convert"
     pdf_path = Path(job.path)
-    out_book = cfg.out_dir / pdf_path.stem
+    out_book = cfg.out_dir / safe_book_name(pdf_path.stem)
     if job.meta.get("skip_existing", True) and (out_book / "00_index.md").exists():
         job.status = "skipped"
         return
@@ -221,8 +221,8 @@ async def convert(
         # 保存名は衝突しないよう一意化（表示名は元のまま）。
         saved = UPLOAD_DIR / f"{uuid.uuid4().hex[:8]}_{_safe_name(display)}"
         saved.write_bytes(await f.read())
-        # リトライ用に元PDFの場所を status.json に控える。
-        stem = Path(display).stem
+        # リトライ用に元PDFの場所を status.json に控える。フォルダ名は安全化して統一。
+        stem = safe_book_name(Path(display).stem)
         data = library_mod.load_status(cfg, stem)
         data["source_pdf"] = str(saved)
         library_mod.save_status(cfg, stem, data)

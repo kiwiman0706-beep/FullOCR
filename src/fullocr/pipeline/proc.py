@@ -31,7 +31,10 @@ def run_streaming(
         shell=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,  # stderr も stdout にまとめて行順を保つ
-        text=True,
+        # エンジン(NDL/Docling)の出力は UTF-8。Windows の既定(cp932)で読むと日本語
+        # ログで UnicodeDecodeError になり変換自体が落ちるため、明示的に UTF-8 で読む。
+        encoding="utf-8",
+        errors="replace",
         bufsize=1,  # 行バッファ（ライブ表示のため）
     )
     if proc.stdout is not None:
