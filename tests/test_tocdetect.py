@@ -5,7 +5,7 @@ from __future__ import annotations
 from fullocr.config import RenderConfig
 from fullocr.ir import BBox, Block, BlockType, DocMeta, Document, Page
 from fullocr.pipeline import tocdetect
-from fullocr.render.markdown import _split_documents
+from fullocr.render.markdown import _block_to_md, _split_documents
 
 
 def _page(number: int, lines: list[tuple[str, BlockType]]) -> Page:
@@ -60,6 +60,19 @@ def test_heading_sequence_ok_returns_none():
         _page(2, [("第2章 B", BlockType.HEADING)]),
     ])
     assert tocdetect.heading_sequence_report(doc) is None
+
+
+def test_table_rendered_as_image_with_caption():
+    b = Block(id="t1", bbox=BBox(x0=0, y0=0, x1=100, y1=100), type=BlockType.TABLE,
+              text="行1 | 行2", image_path="attachments/t1.png")
+    # 既定(tables_as_images=True): 画像＋検索用キャプション
+    md = _block_to_md(b, RenderConfig())
+    assert "attachments/t1.png" in md
+    assert "行1 | 行2" in md
+    # off にすると従来のテキスト
+    md2 = _block_to_md(b, RenderConfig(tables_as_images=False))
+    assert "attachments/t1.png" not in md2
+    assert "行1 | 行2" in md2
 
 
 def test_pdf_page_links_on_headings():

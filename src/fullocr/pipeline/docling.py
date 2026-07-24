@@ -288,7 +288,7 @@ def run_docling(input_pdf: str | Path, outdir: str | Path, cfg: DoclingConfig, o
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     if getattr(sys, "frozen", False):
-        run_docling_inprocess(input_pdf, outdir, on_output)
+        run_docling_inprocess(input_pdf, outdir, on_output, cfg)
         return outdir
     cmd = cfg.command.format(input=quote_path(str(input_pdf)), outdir=quote_path(str(outdir)))
     returncode, tail = run_streaming(cmd, on_output)
@@ -329,7 +329,30 @@ def _bundled_artifacts_path() -> Path | None:
     return path if path.exists() else None
 
 
-def run_docling_inprocess(input_pdf: str | Path, outdir: str | Path, on_output=None) -> Path:
+def _apply_docling_accuracy(opts, cfg: DoclingConfig | None) -> None:
+    """DoclingConfig の精度ノブを PdfPipelineOptions に反映（API差異に強く・失敗は無視）。"""
+    if cfg is None:
+        return
+    try:
+        opts.images_scale = cfg.images_scale
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        opts.do_table_structure = cfg.do_table_structure
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        from docling.datamodel.pipeline_options import TableFormerMode
+
+        mode = TableFormerMode.ACCURATE if str(cfg.table_mode).lower() == "accurate" else TableFormerMode.FAST
+        opts.table_structure_options.mode = mode
+    except Exception:  # noqa: BLE001 - 版差異で属性が無くても無視
+        pass
+
+
+def run_docling_inprocess(
+    input_pdf: str | Path, outdir: str | Path, on_output=None, cfg: DoclingConfig | None = None
+) -> Path:
     """Docling の Python API を直接呼んで JSON を書き出す（exe 同梱用）。
 
     `docling convert {input} --to json --output {outdir} --no-ocr` と等価な処理を
@@ -353,11 +376,12 @@ def run_docling_inprocess(input_pdf: str | Path, outdir: str | Path, on_output=N
         dlog.addHandler(handler)
         dlog.setLevel(logging.INFO)  # ページ処理ログを拾えるレベルに
     try:
-        opts: dict = {"do_ocr": False}
+        base: dict = {"do_ocr": False}
         artifacts = _bundled_artifacts_path()
         if artifacts is not None:
-            opts["artifacts_path"] = str(artifacts)  # 同梱モデルをオフラインで使う
-        pipeline_options = PdfPipelineOptions(**opts)
+            base["artifacts_path"] = str(artifacts)  # 同梱モデルをオフラインで使う
+        pipeline_options = PdfPipelineOptions(**base)
+        _apply_docling_accuracy(pipeline_options, cfg)
         converter = DocumentConverter(
             format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)}
         )

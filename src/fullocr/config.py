@@ -61,6 +61,13 @@ class DoclingConfig(BaseModel):
     # サブコマンドは `convert`（`docling <file>` の省略形も動くが明示する）。
     command: str = "docling convert {input} --to json --output {outdir} --no-ocr"
     json_glob: str = "**/*.json"
+    # --- 精度ノブ（凍結時の in-process 実行に効く。既定は据え置き。PDCAで比較する用） ---
+    # Docling がモデルに渡すページ画像の倍率。上げると検出精度が上がる可能性（速度低下）。
+    images_scale: float = 1.0
+    # 表構造(TableFormer)を解析するか。表を画像扱いにするなら不要にもできる。
+    do_table_structure: bool = True
+    # 表構造の精度モード: "fast" / "accurate"。
+    table_mode: str = "fast"
 
 
 class MinerUConfig(BaseModel):
@@ -145,6 +152,9 @@ class RenderConfig(BaseModel):
     front_matter: bool = True
     # ページ上部/下部のヘッダ・フッタ（柱・ノンブル）を本文から除外する。
     drop_headers_footers: bool = True
+    # 表を「画像」として出す（構造が崩れると意味が変わるため原形を保つ）。中の
+    # OCRテキストは画像の下に検索用キャプションとして添える。off なら Markdown 表。
+    tables_as_images: bool = True
     # 印刷された「目次」ページ（DocMeta.toc_pages）を本文でコメントアウトして隠す。
     # 生成アウトライン(#見出し/Obsidian Outline)があれば印刷目次は冗長なため。
     hide_toc_pages: bool = False
@@ -165,6 +175,8 @@ class PipelineConfig(BaseModel):
     render: RenderConfig = Field(default_factory=RenderConfig)
     cost: CostConfig = Field(default_factory=CostConfig)
 
+    # ページ画像の描画DPI（図の切り出し・目次画像LLMの読み取りに効く）。速度不問なら高め。
+    page_render_dpi: int = 300
     # ルールベースの本文整形（ページ境界の改行連結・ノンブル残骸除去など）。無料・既定ON。
     text_cleanup: bool = True
     # NDL の透明テキストPDF に、認識した見出しから PDF のしおり(アウトライン)を付ける。

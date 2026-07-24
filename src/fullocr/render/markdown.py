@@ -75,6 +75,11 @@ def _block_to_md(b: Block, cfg: RenderConfig) -> str | None:
     if b.type is BlockType.FOOTNOTE:
         return f"> {t}" if t else None
     if b.type is BlockType.TABLE:
+        # 表は画像で原形を保つ（構造が崩れると意味が変わるため）。切り出せていれば
+        # 画像＋検索用キャプション（中のOCRテキスト）。無理なら Markdown 表/テキスト。
+        if cfg.tables_as_images and b.image_path:
+            link = _image_link(b.image_path, cfg, alt=t or "table")
+            return f"{link}\n*{t}*" if t else link
         return t or None
     if not t:
         return None
@@ -127,6 +132,10 @@ def crop_figures(doc: Document, images_dir: Path, cfg: RenderConfig) -> int:
         return 0
 
     images_dir.mkdir(parents=True, exist_ok=True)
+    # 図は常に、表は tables_as_images のとき画像として切り出す。
+    crop_types = {BlockType.FIGURE}
+    if cfg.tables_as_images:
+        crop_types.add(BlockType.TABLE)
     count = 0
     for page in doc.pages:
         if not page.image_path or not Path(page.image_path).exists():
@@ -138,7 +147,7 @@ def crop_figures(doc: Document, images_dir: Path, cfg: RenderConfig) -> int:
             sx = im.width / page.width if page.width else 1.0
             sy = im.height / page.height if page.height else 1.0
             for b in page.blocks:
-                if b.type is not BlockType.FIGURE:
+                if b.type not in crop_types:
                     continue
                 box = (
                     max(0, int(b.bbox.x0 * sx)),

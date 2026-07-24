@@ -110,7 +110,7 @@ def build_ir_for_pdf(
             step(35, f"レイアウト解析（{cfg.engine}）を実行中…")
             run_engine(transparent, engine_out, engine_cfg, on_output=on_output)
         step(58, "ページ画像を描画中…")
-        render_pdf_pages(transparent, pages_out)
+        render_pdf_pages(transparent, pages_out, dpi=cfg.page_render_dpi)
 
     step(66, "OCR結果を読み込み中…")
     ndl_pages = ndl_mod.load_ndl_dir(ndl_out, cfg.ndl.json_glob)

@@ -98,7 +98,12 @@ structure engine (layout only)  ────┘      (build_document)
   caption (`^[図表]\s*\d`) as `CAPTION`, because Docling itself is inconsistent about which label it
   picks for captions in the same document. Table blocks carry a `table_cells` grid (row/col
   offsets + spans, from Docling's `data.table_cells`) that `merge.py` uses to rebuild an actual
-  Markdown table instead of flattened text.
+  Markdown table instead of flattened text — but by default `RenderConfig.tables_as_images` crops
+  the table region as an image (so structure can't be garbled) with the reconstructed text as a
+  searchable caption underneath. Docling accuracy knobs (`DoclingConfig.images_scale`/`table_mode`/
+  `do_table_structure`) apply on the frozen in-process path via `_apply_docling_accuracy` (defensive,
+  tolerates API drift); page-image DPI is `PipelineConfig.page_render_dpi` (default 300 — matters for
+  figure/table crops and the 目次-image LLM). These are exposed for PDCA sweeps, defaults conservative.
 - `pipeline/merge.py` (`build_document`) — for each page, assigns NDL text lines to layout blocks
   by normalized bbox overlap (`PipelineConfig.assign_overlap_threshold`); text reading order within
   a block accounts for vertical (縦書き, right-to-left column) vs horizontal Japanese layout.

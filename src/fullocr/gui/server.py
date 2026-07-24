@@ -177,6 +177,7 @@ async def convert(
     skip_existing: bool = Form(True),
     out_dir: str = Form(""),
     text_cleanup: bool = Form(True),
+    tables_as_images: bool = Form(True),
     hide_toc_pages: bool = Form(False),
     pdf_bookmarks: bool = Form(True),
     pdf_page_links: bool = Form(False),
@@ -201,6 +202,7 @@ async def convert(
         obsidian_wiklinks=obsidian_wiklinks,
         front_matter=front_matter,
         split_by_heading_level=1 if split_chapters else None,
+        tables_as_images=tables_as_images,
         hide_toc_pages=hide_toc_pages,
         pdf_page_links=pdf_page_links,
     )

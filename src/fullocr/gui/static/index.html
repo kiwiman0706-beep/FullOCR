@@ -227,6 +227,7 @@
   <div class="opt"><input type="checkbox" id="opt-split"><div><label for="opt-split">章ごとにファイル分割（実験的）</label><div class="d">見出し検出が不安定な本では過剰分割しがち。</div></div></div>
   <div class="opt"><input type="checkbox" id="opt-skip" checked><div><label for="opt-skip">変換済みはスキップ</label><div class="d">同じ本を再ドロップしても既存があれば再変換しない。</div></div></div>
   <div class="opt"><input type="checkbox" id="opt-cleanup" checked><div><label for="opt-cleanup">本文の改行・ページ境界を自動整形（無料）</label><div class="d">ぶつ切り段落の連結・ノンブル残骸除去（AI不要）。</div></div></div>
+  <div class="opt"><input type="checkbox" id="opt-tableimg" checked><div><label for="opt-tableimg">表は画像として出す（構造を崩さない）</label><div class="d">表はレイアウトが崩れると意味が変わるので、原形を画像で保持。中の文字は画像下に検索用テキストとして添えます。</div></div></div>
   <div class="opt"><input type="checkbox" id="opt-hidetoc"><div><label for="opt-hidetoc">印刷物の「目次ページ」を本文で非表示にする</label><div class="d">生成アウトラインがあるので冗長。Obsidianのコメント(%%…%%)で隠します（消さない）。</div></div></div>
   <div class="opt"><input type="checkbox" id="opt-bookmarks" checked><div><label for="opt-bookmarks">透明テキストPDFに「しおり」(目次)を付ける</label><div class="d">認識した見出しから、PDFビューアの目次でジャンプできるようにします。</div></div></div>
   <div class="opt"><input type="checkbox" id="opt-pdflinks"><div><label for="opt-pdflinks">各見出しに「原文PDFの該当ページ」リンクを付ける</label><div class="d">スマホのObsidianで見出しをタップ→同梱PDFのそのページを開けます（[[本_text.pdf#page=N]]）。</div></div></div>
@@ -282,7 +283,7 @@ const AI_FEATURES = [
   {key:'anomaly',   label:'異常'},
 ];
 const OPT_IDS = ['opt-headers','opt-wiklinks','opt-frontmatter','opt-split','opt-skip','opt-cleanup',
-                 'opt-hidetoc','opt-bookmarks','opt-pdflinks','opt-biblio',
+                 'opt-tableimg','opt-hidetoc','opt-bookmarks','opt-pdflinks','opt-biblio',
                  'opt-llm','opt-llm-rewrite','opt-llm-alt','opt-llm-anomaly','opt-llm-tocimg'];
 
 let pendingFiles = [];
@@ -371,6 +372,7 @@ $('startBtn').addEventListener('click', async () => {
   form.append('skip_existing', $('opt-skip').checked);
   form.append('out_dir', $('outDir').value || '');
   form.append('text_cleanup', $('opt-cleanup').checked);
+  form.append('tables_as_images', $('opt-tableimg').checked);
   form.append('hide_toc_pages', $('opt-hidetoc').checked);
   form.append('pdf_bookmarks', $('opt-bookmarks').checked);
   form.append('pdf_page_links', $('opt-pdflinks').checked);
