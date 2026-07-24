@@ -374,8 +374,14 @@ def process_folder(
     skip_existing: bool = True,
     retries: int = 1,
     progress=None,
+    run_engines: bool = True,
 ) -> dict[str, str]:
-    """フォルダ内の PDF を一括処理。結果マップ {pdf名: 状態} を返す。"""
+    """フォルダ内の PDF を一括処理。結果マップ {pdf名: 状態} を返す。
+
+    run_engines=False にすると、NDL/構造エンジンを起動せず既存の作業JSONから下流
+    （merge・目次検出・LLM・レンダリング）だけ再実行する（PDCA の高速反復用）。
+    その場合は skip_existing=False を併用しないと既存出力でスキップされる点に注意。
+    """
     folder = Path(folder)
     pdfs = sorted(folder.glob(pattern))
     results: dict[str, str] = {}
@@ -386,18 +392,19 @@ def process_folder(
             if progress:
                 progress(pdf.name, "skipped")
             continue
-        state = _process_with_retry(pdf, cfg, retries, progress)
+        state = _process_with_retry(pdf, cfg, retries, progress, run_engines)
         results[pdf.name] = state
     return results
 
 
-def _process_with_retry(pdf: Path, cfg: PipelineConfig, retries: int, progress) -> str:
+def _process_with_retry(pdf: Path, cfg: PipelineConfig, retries: int, progress,
+                        run_engines: bool = True) -> str:
     last_err = ""
     for attempt in range(retries + 1):
         try:
             if progress:
                 progress(pdf.name, f"processing (try {attempt + 1})")
-            process_pdf(pdf, cfg)
+            process_pdf(pdf, cfg, run_engines=run_engines)
             if progress:
                 progress(pdf.name, "done")
             return "done"

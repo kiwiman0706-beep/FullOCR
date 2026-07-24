@@ -58,7 +58,8 @@ def run(
             console.print(f"  {name}: {state}")
 
         results = process_folder(
-            target, cfg, skip_existing=not no_skip, progress=_progress
+            target, cfg, skip_existing=not no_skip, progress=_progress,
+            run_engines=not no_engines,
         )
         for name, state in results.items():
             table.add_row(name, state)
