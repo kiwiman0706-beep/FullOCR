@@ -4,6 +4,7 @@
     fullocr run book.pdf                  1冊を変換
     fullocr run ./books --folder          フォルダ一括変換
     fullocr render work/book/ir.json      IR(補正済み含む)から Markdown 再生成
+    fullocr eval work/                    目次(TOC)精度を評価（PDCAの物差し）
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from rich.table import Table
 
 from .batch import process_folder, process_pdf, render_from_ir
 from .config import PipelineConfig
+from .ir import Document
 
 app = typer.Typer(add_completion=False, help="自炊PDF → 高精度Markdown (NDLOCR-Lite + Marker)")
 console = Console()
@@ -78,6 +80,65 @@ def render(
     cfg = _load_cfg(config)
     out = render_from_ir(ir, cfg, out_name=name)
     console.print(f"[green]再生成完了:[/] {out}")
+
+
+@app.command("eval")
+def eval_toc(
+    target: Path = typer.Argument(..., help="ir.json、work/<book>/、または work/（全書籍を集計）"),
+    as_json: bool = typer.Option(False, "--json", help="JSON で出力（スクリプト集計用）"),
+):
+    """目次(TOC)精度を評価する（OCRは再実行しない）。PDCAの物差し。
+
+    - ir.json か work/<book>/ を渡すと1冊の詳細レポート。
+    - work/（配下に <book>/ir.json が複数）を渡すと全書籍の要約テーブル＋平均。
+    """
+    import json as _json
+
+    from .eval import evaluate_document
+
+    def _report(ir_path: Path, name: str):
+        return evaluate_document(Document.load(ir_path), book=name)
+
+    # 1冊: ir.json か <book>/ir.json
+    ir = target if target.suffix == ".json" else target / "ir.json"
+    if ir.exists():
+        # ファイル名が ir.json なら親フォルダ名を書名ラベルにする。
+        label = ir.parent.name if ir.stem == "ir" else ir.stem
+        rep = _report(ir, label)
+        if as_json:
+            console.print_json(rep.model_dump_json())
+            return
+        console.print(f"[bold]{rep.book}[/]  pages={rep.pages}  toc_pages={rep.toc_pages}")
+        console.print(f"見出し数={rep.num_headings}  レベル分布={rep.level_hist}")
+        console.print(
+            f"目次項目={rep.toc_entries}  一致={rep.matched}  "
+            f"[green]toc_recall={rep.toc_recall}[/]  heading_precision={rep.heading_precision}  "
+            f"連番問題={rep.sequence_issues}"
+        )
+        if rep.missing:
+            console.print(f"[yellow]目次にあるが見出しに無い:[/] {rep.missing[:15]}")
+        if rep.extra:
+            console.print(f"[cyan]見出しだが目次に無い:[/] {rep.extra[:15]}")
+        return
+
+    # 複数冊: work/ 配下
+    books = sorted(p for p in target.glob("*/ir.json"))
+    if not books:
+        console.print(f"[red]ir.json が見つかりません:[/] {target}")
+        raise typer.Exit(1)
+    reports = [_report(p, p.parent.name) for p in books]
+    if as_json:
+        console.print_json(_json.dumps([r.model_dump() for r in reports], ensure_ascii=False))
+        return
+    table = Table("書籍", "見出し", "目次項目", "recall", "precision", "連番問題")
+    for r in reports:
+        table.add_row(r.book, str(r.num_headings), str(r.toc_entries),
+                      str(r.toc_recall), str(r.heading_precision), str(r.sequence_issues))
+    console.print(table)
+    recalls = [r.toc_recall for r in reports if r.toc_recall is not None]
+    if recalls:
+        console.print(f"[bold green]平均 toc_recall = {sum(recalls) / len(recalls):.3f}[/] "
+                      f"（目次を検出できた {len(recalls)}/{len(reports)} 冊）")
 
 
 @app.command("gui")
