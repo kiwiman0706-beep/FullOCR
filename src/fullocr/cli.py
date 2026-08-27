@@ -15,7 +15,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from .batch import process_folder, process_pdf, render_from_ir
+from .batch import extract_index_book, process_folder, process_pdf, render_from_ir
 from .config import PipelineConfig
 from .ir import Document
 
@@ -140,6 +140,42 @@ def eval_toc(
     if recalls:
         console.print(f"[bold green]平均 toc_recall = {sum(recalls) / len(recalls):.3f}[/] "
                       f"（目次を検出できた {len(recalls)}/{len(reports)} 冊）")
+
+
+@app.command("index-terms")
+def index_terms(
+    target: Path = typer.Argument(..., help="ir.json、work/<book>/、または work/（全書籍）"),
+    config: Path | None = typer.Option(None, "--config", "-c", help="設定 JSON（APIキー）"),
+):
+    """巻末索引→見出し語リスト(表記のみ)を抽出（Stage 1）。out/<book>/_index_terms.txt。
+
+    読みの付与(Stage 2)は別スレッド(Claude)で。Gemini APIキーが必要
+    （config の structure_llm.api_key か 環境変数 GEMINI_API_KEY）。
+    """
+    cfg = _load_cfg(config)
+
+    def _one(work_dir: Path, name: str) -> None:
+        cfg.work_dir = work_dir
+        try:
+            r = extract_index_book(cfg, name)
+        except Exception as e:  # noqa: BLE001
+            console.print(f"[red]{name}: {e}[/]")
+            return
+        if not r["found"]:
+            console.print(f"[yellow]{name}: 索引ページなし[/]")
+        else:
+            console.print(f"[green]{name}: {r['count']}語[/] → {r['file']}")
+
+    ir = target if target.suffix == ".json" else target / "ir.json"
+    if ir.exists():
+        _one(ir.parent.parent, ir.parent.name)
+        return
+    books = sorted(p for p in target.glob("*/ir.json"))
+    if not books:
+        console.print(f"[red]ir.json が見つかりません:[/] {target}")
+        raise typer.Exit(1)
+    for p in books:
+        _one(p.parent.parent, p.parent.name)
 
 
 @app.command("gui")

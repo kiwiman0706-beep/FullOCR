@@ -25,7 +25,13 @@ from .. import __version__
 from .. import estimate as estimate_mod
 from .. import library as library_mod
 from .. import biblio as biblio_mod
-from ..batch import apply_biblio, postprocess_book, process_pdf, safe_book_name
+from ..batch import (
+    apply_biblio,
+    extract_index_book,
+    postprocess_book,
+    process_pdf,
+    safe_book_name,
+)
 from ..config import PipelineConfig, RenderConfig
 from ..ir import Document
 from .jobs import Job, JobManager
@@ -119,11 +125,14 @@ def _run_one(job: Job) -> None:
     def _on_output(line: str) -> None:
         manager.log_line(job.id, line)
 
-    if kind == "postprocess":
+    if kind in ("postprocess", "index_terms"):
         name = job.meta["name"]
         try:
-            postprocess_book(cfg, name, job.meta["features"],
-                             on_step=_on_step, on_output=_on_output)
+            if kind == "index_terms":
+                extract_index_book(cfg, name, on_step=_on_step, on_output=_on_output)
+            else:
+                postprocess_book(cfg, name, job.meta["features"],
+                                 on_step=_on_step, on_output=_on_output)
         except Exception as e:
             log_path = _log_failure(Path(name), e)
             if log_path is not None:
@@ -310,6 +319,25 @@ async def postprocess(request: Request) -> dict:
     job_id = manager.enqueue(
         filename=name, path=name, output_dir=str(cfg.out_dir / name),
         meta={"cfg": cfg, "kind": "postprocess", "name": name, "features": features},
+    )
+    return {"ok": True, "job_id": job_id}
+
+
+@app.post("/api/index_terms")
+async def index_terms(request: Request) -> dict:
+    """巻末索引→見出し語リスト(表記のみ)を抽出する（ジョブ・要APIキー）。"""
+    data = await request.json()
+    name = (data.get("book") or "").strip()
+    if not name:
+        return {"ok": False, "error": "書籍が指定されていません"}
+    cfg = _library_cfg(data.get("out_dir", ""))
+    key = (data.get("llm_api_key") or "").strip() or _saved_api_key()
+    if key:
+        cfg.structure_llm.api_key = key
+    cfg.structure_llm.enabled = True
+    job_id = manager.enqueue(
+        filename=name, path=name, output_dir=str(cfg.out_dir / name),
+        meta={"cfg": cfg, "kind": "index_terms", "name": name},
     )
     return {"ok": True, "job_id": job_id}
 

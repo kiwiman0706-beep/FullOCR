@@ -142,8 +142,9 @@ def build_ir_for_pdf(
         if i < len(page_imgs):
             page.image_path = str(page_imgs[i])
 
-    # 印刷された目次ページの範囲を推定（無料・規則ベース）。非表示化・突き合わせの起点。
+    # 印刷された目次ページ／巻末索引ページの範囲を推定（無料・規則ベース）。
     doc.meta.toc_pages = tocdetect_mod.detect_toc_pages(doc)
+    doc.meta.index_pages = tocdetect_mod.detect_index_pages(doc)
 
     # 書誌メタ取得（希望時のみ・ネット）。ファイル名から ISBN・出版社等を引く。
     if cfg.fetch_biblio:
@@ -371,6 +372,39 @@ def apply_biblio(cfg: PipelineConfig, name: str, meta) -> dict:
     _write_structure_review(doc, out_book)
     library.record_ai(cfg, name, "biblio", None)
     return {"ok": True, "isbn": meta.isbn13 or meta.isbn10, "publisher": meta.publisher}
+
+
+def extract_index_book(cfg: PipelineConfig, name: str, *, on_step=None, on_output=None) -> dict:
+    """既存書籍の巻末索引から見出し語リスト（表記のみ）を抽出して out に書き出す。
+
+    OCR/レイアウトはやり直さない。結果は out/<book>/_index_terms.txt（1行1語）。
+    LLM（Gemini）を使うのでキーが要る。索引ページが無ければ found=False。
+    """
+    from . import indexterms, library
+    from .llm import make_client
+
+    step = on_step or _noop_step
+    ir_path = cfg.work_dir / name / "ir.json"
+    if not ir_path.exists():
+        raise FileNotFoundError(f"中間データが見つかりません: {ir_path}（先に通常変換が必要）")
+    doc = Document.load(ir_path)
+    if not doc.meta.index_pages:
+        step(100, "索引ページが見つかりません")
+        return {"found": False, "count": 0}
+    client = make_client(cfg.structure_llm)
+    if client is None:
+        raise RuntimeError("Gemini APIキーが未設定です（設定でキーを入力してください）")
+
+    step(20, f"索引ページ（{len(doc.meta.index_pages)}枚）から見出し語を抽出中…")
+    terms = indexterms.extract_index_terms(doc, client, cfg.structure_llm)
+
+    out_book = cfg.out_dir / name
+    out_book.mkdir(parents=True, exist_ok=True)
+    out_file = out_book / "_index_terms.txt"
+    out_file.write_text("\n".join(terms) + ("\n" if terms else ""), encoding="utf-8")
+    library.record_ai(cfg, name, "index_terms", None)
+    step(100, f"完了（{len(terms)}語）")
+    return {"found": True, "count": len(terms), "file": str(out_file)}
 
 
 def render_from_ir(ir_path: str | Path, cfg: PipelineConfig, out_name: str | None = None) -> Path:

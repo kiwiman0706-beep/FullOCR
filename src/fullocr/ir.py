@@ -133,6 +133,8 @@ class DocMeta(BaseModel):
     # 印刷された「目次」ページのページ番号（tocdetect が推定）。非表示化・LLMへの
     # 目次画像送付・見出しとの突き合わせの起点になる。
     toc_pages: list[int] = Field(default_factory=list)
+    # 巻末「索引」ページのページ番号（indexterms の見出し語抽出に使う）。
+    index_pages: list[int] = Field(default_factory=list)
 
 
 class Document(BaseModel):
