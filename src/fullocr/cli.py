@@ -3,6 +3,7 @@
     fullocr init-config config.json      設定ファイルの雛形を出力
     fullocr run book.pdf                  1冊を変換
     fullocr run ./books --folder          フォルダ一括変換
+    fullocr batch ./books                 「お任せ」一括変換（要約＋失敗一覧のみ表示）
     fullocr render work/book/ir.json      IR(補正済み含む)から Markdown 再生成
     fullocr eval work/                    目次(TOC)精度を評価（PDCAの物差し）
 """
@@ -15,7 +16,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from .batch import extract_index_book, process_folder, process_pdf, render_from_ir
+from .batch import extract_index_book, process_folder, process_pdf, render_from_ir, run_batch
 from .config import PipelineConfig
 from .ir import Document
 
@@ -69,6 +70,44 @@ def run(
     with console.status(f"変換中: {target.name}"):
         out = process_pdf(target, cfg, run_engines=not no_engines)
     console.print(f"[green]完了:[/] {out}")
+
+
+@app.command("batch")
+def batch(
+    folder: Path = typer.Argument(..., help="自炊PDFの入ったフォルダ"),
+    config: Path | None = typer.Option(None, "--config", "-c", help="設定 JSON"),
+    log: Path | None = typer.Option(None, "--log", help="詳細ログの出力先（既定 out/batch.log）"),
+    no_engines: bool = typer.Option(
+        False, "--no-engines", help="NDL/構造エンジンを起動せず既存の作業JSONから再構築"
+    ),
+    no_skip: bool = typer.Option(False, "--no-skip", help="既存出力をスキップしない"),
+    retries: int = typer.Option(1, "--retries", help="1冊あたりの失敗リトライ回数"),
+):
+    """フォルダを丸ごと「お任せ」変換する（Claudeに投げる想定）。
+
+    1冊ごとの進捗は**ログファイル**へ流し、画面には最後の要約と失敗一覧だけ出す。
+    失敗した本は out/batch_report.json に原因付きで残るので、そこだけ後追いすればよい。
+    """
+    cfg = _load_cfg(config)
+    with console.status(f"一括変換中: {folder}（詳細はログファイルへ）"):
+        rep = run_batch(
+            folder, cfg, log_path=log, skip_existing=not no_skip,
+            run_engines=not no_engines, retries=retries,
+        )
+    console.print(
+        f"[bold]変換バッチ完了[/]  合計 {rep['total']} 冊 / {rep['elapsed_sec']:.0f}秒"
+    )
+    console.print(
+        f"  [green]成功 {len(rep['done'])}[/]  スキップ {len(rep['skipped'])}  "
+        f"[red]失敗 {len(rep['failed'])}[/]"
+    )
+    if rep["failed"]:
+        table = Table("失敗した本", "原因")
+        for f in rep["failed"]:
+            table.add_row(f["name"], (f["error"] or "")[:120])
+        console.print(table)
+    console.print(f"詳細ログ: {rep['log']}")
+    console.print(f"失敗一覧(JSON): {rep['report']}")
 
 
 @app.command("render")

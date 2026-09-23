@@ -13,6 +13,7 @@ NDL / 構造エンジンの実行はユーザー環境（Windows, CPU）で走�
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import time
@@ -446,6 +447,72 @@ def process_folder(
         state = _process_with_retry(pdf, cfg, retries, progress, run_engines)
         results[pdf.name] = state
     return results
+
+
+def run_batch(
+    folder: str | Path,
+    cfg: PipelineConfig,
+    *,
+    log_path: str | Path | None = None,
+    skip_existing: bool = True,
+    run_engines: bool = True,
+    retries: int = 1,
+) -> dict:
+    """「お任せ」一括変換。詳細はログ**ファイル**へ流し、要約 dict を返す。
+
+    設計意図（トークン節約）: 進捗の1冊ごとの行はコンテキストに垂れ流さずログファイル
+    へ書き、呼び出し側（CLI / Claude）は最後の要約と失敗一覧だけ見ればよい形にする。
+    戻り値と同じ内容を out_dir/batch_report.json にも保存する（失敗本だけ後追いできる）。
+
+    戻り値: {folder, started, elapsed_sec, run_engines, total,
+             done:[名], skipped:[名], failed:[{name, error}], log, report}
+    """
+    folder = Path(folder)
+    log_path = Path(log_path) if log_path else cfg.out_dir / "batch.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    started = time.strftime("%Y-%m-%d %H:%M:%S")
+    t0 = time.time()
+
+    with log_path.open("a", encoding="utf-8") as lf:
+        lf.write(f"\n=== batch start {started}  folder={folder}  "
+                 f"engines={run_engines} ===\n")
+        lf.flush()
+
+        def _progress(name: str, state: str) -> None:
+            lf.write(f"{time.strftime('%H:%M:%S')}  {name}: {state}\n")
+            lf.flush()
+
+        results = process_folder(
+            folder, cfg, skip_existing=skip_existing, retries=retries,
+            progress=_progress, run_engines=run_engines,
+        )
+        elapsed = time.time() - t0
+        done = sorted(n for n, s in results.items() if s == "done")
+        skipped = sorted(n for n, s in results.items() if s == "skipped")
+        failed = sorted((n, s) for n, s in results.items() if s.startswith("failed"))
+        lf.write(f"=== batch end  done={len(done)} skipped={len(skipped)} "
+                 f"failed={len(failed)}  {elapsed:.0f}s ===\n")
+
+    report = {
+        "folder": str(folder),
+        "started": started,
+        "elapsed_sec": round(elapsed, 1),
+        "run_engines": run_engines,
+        "total": len(results),
+        "done": done,
+        "skipped": skipped,
+        "failed": [
+            {"name": n,
+             "error": s[len("failed: "):] if s.startswith("failed: ") else s}
+            for n, s in failed
+        ],
+        "log": str(log_path),
+    }
+    report_path = cfg.out_dir / "batch_report.json"
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    report["report"] = str(report_path)
+    return report
 
 
 def _process_with_retry(pdf: Path, cfg: PipelineConfig, retries: int, progress,
