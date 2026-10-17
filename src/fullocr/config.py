@@ -161,6 +161,10 @@ class RenderConfig(BaseModel):
     # 各見出しに、同梱の透明テキストPDFの該当ページへのリンク（Obsidian の
     # [[book_text.pdf#page=N]]）を付ける。スマホで「原文のそのページ」を開ける。
     pdf_page_links: bool = False
+    # 各ページ境界に、見えない HTML コメントのページアンカーを埋める（アウトライン
+    # を汚さない）。外部リーダー(dsbooks 等)が「MD の今の位置 → 原PDFの該当ページ」
+    # へ切り替えるための機械可読マーカー。仕様: docs/page-anchor-spec.md。
+    page_anchors: bool = False
 
 
 class PipelineConfig(BaseModel):

@@ -190,6 +190,7 @@ async def convert(
     hide_toc_pages: bool = Form(False),
     pdf_bookmarks: bool = Form(True),
     pdf_page_links: bool = Form(False),
+    page_anchors: bool = Form(False),
     fetch_biblio: bool = Form(False),
     llm_structure: bool = Form(False),
     llm_anomaly: bool = Form(False),
@@ -214,6 +215,7 @@ async def convert(
         tables_as_images=tables_as_images,
         hide_toc_pages=hide_toc_pages,
         pdf_page_links=pdf_page_links,
+        page_anchors=page_anchors,
     )
     if llm_structure:
         cfg.structure_llm.enabled = True

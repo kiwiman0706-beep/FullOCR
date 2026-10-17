@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from ..config import RenderConfig
@@ -19,8 +20,68 @@ from .toc import build_toc, collect_headings, slugify, toc_to_markdown
 # 本文に出さないブロック種別（設定で頭注/柱を落とす場合）。
 _HEADER_FOOTER = {BlockType.PAGE_HEADER, BlockType.PAGE_FOOTER}
 
+# ページアンカーのスキーム識別子（dsbooks 等の外部リーダーとの契約。docs/page-anchor-spec.md）。
+PAGE_ANCHOR_SCHEME = "fullocr-1"
+# 柱・ノンブルから印刷ページ番号を拾うための断片。全角数字は正規化してから当てる。
+_NOMBRE_ARABIC = re.compile(r"^\d{1,4}$")
+_NOMBRE_ROMAN = re.compile(r"^[ivxlcdm]{1,6}$", re.IGNORECASE)
+_ZEN2HAN = str.maketrans("０１２３４５６７８９", "0123456789")
 
-def _front_matter(doc: Document) -> str:
+
+def _detect_nombre(page: Page) -> str | None:
+    """ページの柱/ノンブル（PAGE_HEADER/PAGE_FOOTER）から印刷ページ番号を推定。
+
+    フッタを優先し、無ければヘッダ。柱に章タイトル＋番号が同居するので、空白等で
+    分割した「数字だけ」「ローマ数字だけ」のトークンを拾う。見つからなければ None。
+    本文から除外(drop_headers_footers)されていても IR には残っているので参照できる。
+    """
+    for want in (BlockType.PAGE_FOOTER, BlockType.PAGE_HEADER):
+        for b in page.blocks:
+            if b.type is not want:
+                continue
+            for tok in b.text.translate(_ZEN2HAN).split():
+                tok = tok.strip(".,)(-–—　")
+                if _NOMBRE_ARABIC.match(tok):
+                    return str(int(tok))  # 先頭0を落として正規化
+                if _NOMBRE_ROMAN.match(tok):
+                    return tok.lower()
+    return None
+
+
+def _page_offset(doc: Document) -> int | None:
+    """pdf_page = printed_page + offset の offset を、算用数字ノンブルの最頻差で推定。
+
+    前付け(ローマ数字)や番号なしページは無視。3ページ以上で一致した差があるときだけ
+    返す（自炊は見開き2up等で崩れることがあるため、確信のある時だけ front-matter に出す）。
+    """
+    from collections import Counter
+
+    diffs: Counter[int] = Counter()
+    for page in doc.pages:
+        n = _detect_nombre(page)
+        if n and n.isdigit():
+            diffs[page.number - int(n)] += 1
+    if not diffs:
+        return None
+    offset, count = diffs.most_common(1)[0]
+    return offset if count >= 3 else None
+
+
+def _page_anchor(page: Page, cfg: RenderConfig) -> str | None:
+    """ページ境界の不可視マーカー（HTMLコメント）。アウトラインには出ない。
+
+    例: <!-- fullocr:page pdf=23 print="15" -->
+    pdf= は原PDFの物理ページ(1始まり, 常にあり / #page=N で開ける)。
+    print= はOCRで拾えた印刷ページ番号(任意, ローマ数字や欠落あり)。
+    """
+    if not cfg.page_anchors:
+        return None
+    printed = _detect_nombre(page)
+    attr = f' print="{printed}"' if printed else ""
+    return f"<!-- fullocr:page pdf={page.number}{attr} -->"
+
+
+def _front_matter(doc: Document, cfg: RenderConfig | None = None) -> str:
     m = doc.meta
     lines = ["---"]
     if m.title:
@@ -41,6 +102,14 @@ def _front_matter(doc: Document) -> str:
     if m.source_pdf:
         lines.append(f"source: {m.source_pdf}")
     lines.append(f"pages: {m.page_count or len(doc.pages)}")
+    # ページアンカー対応リーダー（dsbooks 等）向けの宣言。docs/page-anchor-spec.md。
+    if cfg and cfg.page_anchors:
+        lines.append(f"page_anchors: {PAGE_ANCHOR_SCHEME}")
+        if m.pdf_name:
+            lines.append(f"pdf_file: {m.pdf_name}")
+        offset = _page_offset(doc)
+        if offset is not None:
+            lines.append(f"page_offset: {offset}")
     lines.append("tags: [fullocr]")
     lines.append("---")
     return "\n".join(lines)
@@ -109,6 +178,9 @@ def _page_to_md(
     hidden = hidden or set()
     hide = page.number in hidden
     chunks: list[str] = []
+    anchor = _page_anchor(page, cfg)
+    if anchor:
+        chunks.append(anchor)  # 不可視マーカーは隠しページでもコメント化せず常に出す
     for b in page.ordered_blocks():
         md = _block_to_md(b, cfg)
         if not md:
@@ -222,6 +294,7 @@ def _split_documents(doc: Document, cfg: RenderConfig) -> list[tuple[str, list[s
 
     for page in doc.pages:
         hide = page.number in hidden
+        anchor_pending = _page_anchor(page, cfg)  # そのページ最初の可視ブロックの直前に置く
         for b in page.ordered_blocks():
             if (
                 b.type is BlockType.HEADING
@@ -233,6 +306,9 @@ def _split_documents(doc: Document, cfg: RenderConfig) -> list[tuple[str, list[s
                 idx += 1
             md = _block_to_md(b, cfg)
             if md:
+                if anchor_pending:
+                    current.append(anchor_pending)  # flush後＝同じ章ファイルに入る
+                    anchor_pending = None
                 if b.type is BlockType.HEADING:
                     md += _page_link(page, cfg, pdf_name)
                 current.append(_maybe_comment(md, hide))
@@ -268,7 +344,7 @@ def render_document(doc: Document, out_dir: str | Path, cfg: RenderConfig | None
     toc = build_toc(doc, _heading_targets(doc, cfg))
     index_parts: list[str] = []
     if cfg.front_matter:
-        index_parts.append(_front_matter(doc))
+        index_parts.append(_front_matter(doc, cfg))
     index_parts.append(f"# {doc.meta.title or 'Document'}\n")
     index_parts.append("## 目次\n")
     index_parts.append(toc_to_markdown(toc) or "*(見出しが検出されませんでした)*")

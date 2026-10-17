@@ -231,6 +231,7 @@
   <div class="opt"><input type="checkbox" id="opt-hidetoc"><div><label for="opt-hidetoc">印刷物の「目次ページ」を本文で非表示にする</label><div class="d">生成アウトラインがあるので冗長。Obsidianのコメント(%%…%%)で隠します（消さない）。</div></div></div>
   <div class="opt"><input type="checkbox" id="opt-bookmarks" checked><div><label for="opt-bookmarks">透明テキストPDFに「しおり」(目次)を付ける</label><div class="d">認識した見出しから、PDFビューアの目次でジャンプできるようにします。</div></div></div>
   <div class="opt"><input type="checkbox" id="opt-pdflinks"><div><label for="opt-pdflinks">各見出しに「原文PDFの該当ページ」リンクを付ける</label><div class="d">スマホのObsidianで見出しをタップ→同梱PDFのそのページを開けます（[[本_text.pdf#page=N]]）。</div></div></div>
+  <div class="opt"><input type="checkbox" id="opt-anchors"><div><label for="opt-anchors">ページアンカー（不可視）を埋める</label><div class="d">外部リーダー(dsbooks等)向け。各ページ境界にHTMLコメントの機械可読マーカー(&lt;!-- fullocr:page pdf=N --&gt;)を入れます。アウトラインは汚しません。仕様: docs/page-anchor-spec.md。</div></div></div>
   <div class="opt"><input type="checkbox" id="opt-biblio"><div><label for="opt-biblio">書誌メタ（ISBN・出版社・刊行年）をネットで取得</label><div class="d">ファイル名からGoogle Books/openBDで検索し front-matter に記載（希望時のみ・要ネット）。ISBN等の事実はDB由来。</div></div></div>
 
   <h3>AI（Gemini）— 新規変換で既定ONにする処理</h3>
@@ -283,7 +284,7 @@ const AI_FEATURES = [
   {key:'anomaly',   label:'異常'},
 ];
 const OPT_IDS = ['opt-headers','opt-wiklinks','opt-frontmatter','opt-split','opt-skip','opt-cleanup',
-                 'opt-tableimg','opt-hidetoc','opt-bookmarks','opt-pdflinks','opt-biblio',
+                 'opt-tableimg','opt-hidetoc','opt-bookmarks','opt-pdflinks','opt-anchors','opt-biblio',
                  'opt-llm','opt-llm-rewrite','opt-llm-alt','opt-llm-anomaly','opt-llm-tocimg'];
 
 let pendingFiles = [];
@@ -376,6 +377,7 @@ $('startBtn').addEventListener('click', async () => {
   form.append('hide_toc_pages', $('opt-hidetoc').checked);
   form.append('pdf_bookmarks', $('opt-bookmarks').checked);
   form.append('pdf_page_links', $('opt-pdflinks').checked);
+  form.append('page_anchors', $('opt-anchors').checked);
   form.append('fetch_biblio', $('opt-biblio').checked);
   form.append('llm_structure', $('opt-llm').checked);
   form.append('llm_anomaly', $('opt-llm-anomaly').checked);
