@@ -66,6 +66,21 @@ A/B比較して選ぶのが確実（IR が共通なので比較が容易）。
 
 ## セットアップ
 
+### macOS アプリ（`FullOCR.dmg`）の初回起動
+
+配布アプリは無料のアドホック署名のみ（Apple Developer ID での公証はしていない）なので、
+初回だけ Gatekeeper を手動で通す必要がある。
+
+1. `FullOCR.dmg` を開き、`FullOCR` を `Applications` にドラッグ。
+2. `Applications` の `FullOCR` を**右クリック →「開く」**→ ダイアログで再度「開く」。
+   （以降は普通にダブルクリックで起動できる。）
+
+「"FullOCR" は壊れているため開けません」と出る古い版をダウンロード済みの場合は、検疫属性を外す:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/FullOCR.app
+```
+
 ### Windows ユーザー向け（推奨: WSL）
 
 このプロジェクトは OCR/ML 系ツール（NDLOCR-Lite・Marker・PyMuPDF）を使うため、

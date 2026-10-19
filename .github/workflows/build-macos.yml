@@ -89,6 +89,20 @@ jobs:
           cp -R ndlocr-lite-src/dist/ndlocr-lite \
             "fullocr/dist/FullOCR.app/Contents/MacOS/ndlocr-lite"
 
+      # --- Ad-hoc code signing ---
+      # Apple Silicon refuses to run UNSIGNED arm64 code and reports it as
+      # "〜は壊れているため開けません / is damaged", even after the user clears
+      # quarantine. An ad-hoc signature (--sign -) makes every bundled mach-O
+      # runnable WITHOUT a paid Apple Developer ID. The user still gets the normal
+      # "unidentified developer" Gatekeeper prompt (right-click → Open, or System
+      # Settings → Open Anyway), but no longer the dead-end "damaged" dialog.
+      # Proper notarization (removes that prompt too) needs a paid Developer ID +
+      # notarytool and is intentionally not done here.
+      - name: Ad-hoc codesign the app
+        run: |
+          codesign --force --deep --sign - fullocr/dist/FullOCR.app
+          codesign --verify --verbose=2 fullocr/dist/FullOCR.app || true
+
       # --- Package as a drag-to-Applications .dmg ---
       # A staging folder holds FullOCR.app plus an /Applications symlink; the
       # user drags the app onto it. Dropping a newer build over an existing
