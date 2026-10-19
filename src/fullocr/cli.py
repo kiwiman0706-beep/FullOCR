@@ -6,6 +6,7 @@
     fullocr batch ./books                 「お任せ」一括変換（要約＋失敗一覧のみ表示）
     fullocr render work/book/ir.json      IR(補正済み含む)から Markdown 再生成
     fullocr eval work/                    目次(TOC)精度を評価（PDCAの物差し）
+    fullocr digest work/book/             AI要約・マインドマップ・一問一答を生成（ソースリンク付き）
 """
 
 from __future__ import annotations
@@ -204,6 +205,46 @@ def index_terms(
             console.print(f"[yellow]{name}: 索引ページなし[/]")
         else:
             console.print(f"[green]{name}: {r['count']}語[/] → {r['file']}")
+
+    ir = target if target.suffix == ".json" else target / "ir.json"
+    if ir.exists():
+        _one(ir.parent.parent, ir.parent.name)
+        return
+    books = sorted(p for p in target.glob("*/ir.json"))
+    if not books:
+        console.print(f"[red]ir.json が見つかりません:[/] {target}")
+        raise typer.Exit(1)
+    for p in books:
+        _one(p.parent.parent, p.parent.name)
+
+
+@app.command("digest")
+def digest_cmd(
+    target: Path = typer.Argument(..., help="ir.json、work/<book>/、または work/（全書籍）"),
+    config: Path | None = typer.Option(None, "--config", "-c", help="設定 JSON（APIキー）"),
+    kinds: str = typer.Option("summary,mindmap,qa", "--kinds",
+                              help="生成種別をカンマ区切りで（summary/mindmap/qa）"),
+    epub: bool = typer.Option(False, "--epub", help="EPUB も出力（本文同梱・内部リンク）"),
+):
+    """AI要約・マインドマップ・一問一答を、各項目にソースリンク付きで生成（Stage後）。
+
+    out/<book>/_digest.md（と --epub 指定時は _digest.epub）。再OCRは不要。
+    Gemini APIキーが必要（config の structure_llm.api_key か 環境変数 GEMINI_API_KEY）。
+    """
+    from .digest import digest_book
+
+    cfg = _load_cfg(config)
+    cfg.digest.kinds = [k.strip() for k in kinds.split(",") if k.strip()]
+
+    def _one(work_dir: Path, name: str) -> None:
+        cfg.work_dir = work_dir
+        try:
+            r = digest_book(cfg, name, make_epub=epub)
+        except Exception as e:  # noqa: BLE001
+            console.print(f"[red]{name}: {e}[/]")
+            return
+        extra = f" + {r['epub']}" if "epub" in r else ""
+        console.print(f"[green]{name}: {r['sections']}節[/] → {r['md']}{extra}")
 
     ir = target if target.suffix == ".json" else target / "ir.json"
     if ir.exists():

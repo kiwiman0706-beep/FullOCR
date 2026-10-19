@@ -479,6 +479,17 @@ async function indexTermsBook(name){
     ensurePolling();   // 進捗はライブラリ行＋ログに出る。完了後 _index_terms.txt が出力先に。
   }catch(e){ showBanner('索引抽出に失敗: '+e); }
 }
+async function digestBook(name){
+  showBanner('');
+  const epub = confirm('EPUBも生成しますか？（OK=MD+EPUB / キャンセル=MDのみ）');
+  try{
+    const r = await fetch('/api/digest',{method:'POST',headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({book:name, out_dir:$('outDir').value||'', epub})});
+    const d = await r.json();
+    if(!d.ok){ showBanner(d.error||'ダイジェスト生成できませんでした'); return; }
+    ensurePolling();   // 完了後 _digest.md（と _digest.epub）が出力先に。
+  }catch(e){ showBanner('ダイジェスト生成に失敗: '+e); }
+}
 async function biblioBook(name){
   showBanner('');
   const btnLabel = '検索中…';
@@ -603,11 +614,12 @@ function renderLibrary(books){
     const ntd=document.createElement('td');
     ntd.innerHTML = `<span class="bookname">${esc(book.name)}</span>` +
       (st.render==='done' ? `<span class="openlink" data-preview="${esc(book.name)}">👁プレビュー</span><span class="openlink" data-open="${esc(book.out_dir)}">📂開く</span>` : '') +
-      (book.has_ir ? `<span class="openlink" data-biblio="${esc(book.name)}">📖メタ取得</span><span class="openlink" data-index="${esc(book.name)}">📇索引→用語</span>` : '');
+      (book.has_ir ? `<span class="openlink" data-biblio="${esc(book.name)}">📖メタ取得</span><span class="openlink" data-index="${esc(book.name)}">📇索引→用語</span><span class="openlink" data-digest="${esc(book.name)}">🧠要約/マップ</span>` : '');
     ntd.querySelectorAll('[data-open]').forEach(el=>el.addEventListener('click',ev=>{ev.stopPropagation(); openFolder(el.getAttribute('data-open'));}));
     ntd.querySelectorAll('[data-preview]').forEach(el=>el.addEventListener('click',ev=>{ev.stopPropagation(); openPreview(el.getAttribute('data-preview'));}));
     ntd.querySelectorAll('[data-biblio]').forEach(el=>el.addEventListener('click',ev=>{ev.stopPropagation(); biblioBook(el.getAttribute('data-biblio'));}));
     ntd.querySelectorAll('[data-index]').forEach(el=>el.addEventListener('click',ev=>{ev.stopPropagation(); indexTermsBook(el.getAttribute('data-index'));}));
+    ntd.querySelectorAll('[data-digest]').forEach(el=>el.addEventListener('click',ev=>{ev.stopPropagation(); digestBook(el.getAttribute('data-digest'));}));
     tr.appendChild(ntd);
     tr.appendChild(stageCell(st.ocr));
     tr.appendChild(stageCell(st.layout));

@@ -1,6 +1,6 @@
 [project]
 name = "fullocr"
-version = "0.12.0"
+version = "0.13.0"
 description = "自炊した挿絵付き専門書PDFを、NDLOCR-Lite + Marker で高精度にMarkdown化するバッチ/GUIツール（Obsidian最適化）"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -29,6 +29,8 @@ dev = ["pytest>=8.0", "ruff>=0.4"]
 gui = ["fastapi>=0.110", "uvicorn>=0.29", "pywebview>=5.0", "python-multipart>=0.0.9"]
 # LLM 構造化パス（見出し階層付与＋構成評価）。プロバイダは差し替え可能。
 llm = ["google-genai>=1.0"]
+# ダイジェストの EPUB 出力（本文同梱・内部リンク）。
+epub = ["ebooklib>=0.18"]
 
 [project.scripts]
 fullocr = "fullocr.cli:app"

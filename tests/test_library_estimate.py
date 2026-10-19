@@ -25,7 +25,7 @@ def _doc_with_content() -> Document:
 def test_estimate_all_features_and_rewrite_is_priciest():
     cfg = PipelineConfig()
     est = estimate.estimate_all(_doc_with_content(), cfg)
-    assert set(est) == {"structure", "rewrite", "figure_alt", "anomaly"}
+    assert set(est) == {"structure", "rewrite", "figure_alt", "anomaly", "digest"}
     # リライトは出力トークンが本文まるごと分かかるので、構造付けより高い
     assert est["rewrite"]["jpy"] >= est["structure"]["jpy"]
     # 図が1枚あるので figure_alt は適用可能・費用>0

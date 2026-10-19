@@ -126,11 +126,19 @@ def _run_one(job: Job) -> None:
     def _on_output(line: str) -> None:
         manager.log_line(job.id, line)
 
-    if kind in ("postprocess", "index_terms"):
+    if kind in ("postprocess", "index_terms", "digest"):
         name = job.meta["name"]
         try:
             if kind == "index_terms":
                 extract_index_book(cfg, name, on_step=_on_step, on_output=_on_output)
+            elif kind == "digest":
+                from ..digest import digest_book
+                _on_step(10, "ダイジェスト生成中…")
+                r = digest_book(cfg, name, make_epub=job.meta.get("epub", False))
+                _on_output(f"_digest.md ({r['sections']}節) を書き出しました")
+                if "epub" in r:
+                    _on_output(f"EPUB: {r['epub']}")
+                _on_step(100, "完了")
             else:
                 postprocess_book(cfg, name, job.meta["features"],
                                  on_step=_on_step, on_output=_on_output)
@@ -373,6 +381,28 @@ async def index_terms(request: Request) -> dict:
     job_id = manager.enqueue(
         filename=name, path=name, output_dir=str(cfg.out_dir / name),
         meta={"cfg": cfg, "kind": "index_terms", "name": name},
+    )
+    return {"ok": True, "job_id": job_id}
+
+
+@app.post("/api/digest")
+async def digest_api(request: Request) -> dict:
+    """AI要約・マインドマップ・一問一答を生成（ジョブ・要APIキー）。"""
+    data = await request.json()
+    name = (data.get("book") or "").strip()
+    if not name:
+        return {"ok": False, "error": "書籍が指定されていません"}
+    cfg = _library_cfg(data.get("out_dir", ""))
+    key = (data.get("llm_api_key") or "").strip() or _saved_api_key()
+    if key:
+        cfg.structure_llm.api_key = key
+    kinds = data.get("kinds")
+    if isinstance(kinds, list) and kinds:
+        cfg.digest.kinds = [str(k) for k in kinds]
+    job_id = manager.enqueue(
+        filename=name, path=name, output_dir=str(cfg.out_dir / name),
+        meta={"cfg": cfg, "kind": "digest", "name": name,
+              "epub": bool(data.get("epub", False))},
     )
     return {"ok": True, "job_id": job_id}
 

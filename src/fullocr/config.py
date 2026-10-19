@@ -167,6 +167,25 @@ class RenderConfig(BaseModel):
     page_anchors: bool = False
 
 
+class DigestConfig(BaseModel):
+    """AI要約・マインドマップ・一問一答カードの生成設定（ソースリンク付き）。
+
+    変換済みの IR から、章/節(or ページ窓)単位で要約し、各項目に「原文PDFの該当ページ」
+    「生成MDの該当見出し」へのリンクを付ける。引用ページはLLMに言わせず、こちらが把握
+    している節のページ範囲から生成する（＝捏造しない）。Markdown と EPUB に出力可能。
+    """
+
+    # 生成する種類: "summary"(構造化要約) / "mindmap"(Mermaid) / "qa"(一問一答)。
+    kinds: list[str] = Field(default_factory=lambda: ["summary", "mindmap", "qa"])
+    # 見出しが乏しい/多すぎる本で使う、ページ窓の幅（1ユニット=何ページ）。
+    segment_pages: int = 8
+    # 1ユニットあたりにLLMへ送る最大文字数（超過は中略してトークンを抑える）。
+    max_chars_per_section: int = 6000
+    # ソースリンクの向き先。
+    link_pdf: bool = True   # 原文PDFの該当ページ（#page=N）
+    link_md: bool = True    # 生成MDの該当見出し（Obsidian wikilink）
+
+
 class PipelineConfig(BaseModel):
     # 構造解析エンジンの選択。docling(推奨) / mineru(数式・表向き) / marker。
     engine: str = "docling"
@@ -178,6 +197,7 @@ class PipelineConfig(BaseModel):
     structure_llm: StructureLLMConfig = Field(default_factory=StructureLLMConfig)
     render: RenderConfig = Field(default_factory=RenderConfig)
     cost: CostConfig = Field(default_factory=CostConfig)
+    digest: DigestConfig = Field(default_factory=DigestConfig)
 
     # ページ画像の描画DPI（図の切り出し・目次画像LLMの読み取りに効く）。速度不問なら高め。
     page_render_dpi: int = 300

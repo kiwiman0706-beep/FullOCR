@@ -16,7 +16,7 @@ from __future__ import annotations
 from .config import CostConfig, StructureLLMConfig
 from .ir import BlockType, Document
 
-FEATURES = ("structure", "rewrite", "figure_alt", "anomaly")
+FEATURES = ("structure", "rewrite", "figure_alt", "anomaly", "digest")
 
 # 図1枚あたりの概算トークン（vision入力）と説明文の出力。粗い目安。
 _IMAGE_TOKENS_IN = 1100
@@ -100,6 +100,13 @@ def _tokens_for(doc: Document, feature: str, scfg: StructureLLMConfig, cost: Cos
             # ページ境界前後だけ（1境界あたり ~160 文字）
             in_chars = max(0, len(doc.pages) - 1) * 160
         return _tok(in_chars, cost) + 300, 400
+    if feature == "digest":
+        # 節(or ページ窓)ごとに本文を送り、要約/カード/マップ(=小さめ出力)を返す。
+        body = _body_chars(doc)
+        tin = _tok(body, cost) + 300
+        # 出力は本文の約1割（要約＋Q&A＋マップ）。
+        tout = max(200, _tok(body, cost) // 10)
+        return tin, tout
     return 0, 0
 
 
