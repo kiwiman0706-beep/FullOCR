@@ -1,4 +1,4 @@
-# FullOCR
+# Theta.FullOCR
 
 自炊した挿絵付きの専門書PDFを、**文書構造・参考画像・目次つきの Markdown** に変換し、
 Obsidian などでそのまま読めるようにする個人用 AI-OCR バッチ／GUI ツール。

@@ -8,4 +8,9 @@
 
 # ビルド時、リリース版ではワークフローが release_version でこの値を上書きする
 # （GUI 画面にこのバージョンを表示する）。開発中はこの既定値のまま。
-__version__ = "0.11.0"
+__version__ = "0.12.0"
+
+# 画面・インストーラに出す製品表示名（パッケージ名 fullocr / CLI は据え置き）。
+APP_NAME = "Theta.FullOCR"
+# 自動更新チェックの参照先リポジトリ（owner/repo）。
+GITHUB_REPO = "kiwiman0706-beep/FullOCR"

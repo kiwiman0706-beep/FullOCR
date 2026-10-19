@@ -18,9 +18,9 @@
   #define MyAppVersion "0.0.0"
 #endif
 
-#define MyAppName "FullOCR"
+#define MyAppName "Theta.FullOCR"
 #define MyAppExeName "fullocr-gui.exe"
-#define MyAppPublisher "FullOCR"
+#define MyAppPublisher "Theta"
 
 [Setup]
 ; Keep this GUID stable forever — it is what makes reinstalls upgrade in place.

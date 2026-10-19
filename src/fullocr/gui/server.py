@@ -21,10 +21,11 @@ from pathlib import Path
 from fastapi import FastAPI, Form, Request, Response, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 
-from .. import __version__
+from .. import APP_NAME, __version__
 from .. import estimate as estimate_mod
 from .. import library as library_mod
 from .. import biblio as biblio_mod
+from .. import updater as updater_mod
 from ..batch import (
     apply_biblio,
     extract_index_book,
@@ -36,7 +37,7 @@ from ..config import PipelineConfig, RenderConfig
 from ..ir import Document
 from .jobs import Job, JobManager
 
-app = FastAPI(title="FullOCR")
+app = FastAPI(title=APP_NAME)
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -172,8 +173,40 @@ def index() -> HTMLResponse:
 
 @app.get("/api/version")
 def version() -> dict:
-    """画面に出すアプリのバージョン（ビルド時に __init__.py へ焼き込まれる）。"""
-    return {"version": __version__}
+    """画面に出すアプリ名とバージョン（ビルド時に __init__.py へ焼き込まれる）。"""
+    return {"version": __version__, "app_name": APP_NAME}
+
+
+@app.get("/api/update_check")
+def update_check() -> dict:
+    """GitHub Releases を見て新しい版があるか調べる（読み取りのみ・無害）。
+
+    リポジトリ公開前提。current(現在版)/latest(最新タグ)/has_update/
+    download_url(当該OSのインストーラ)/system を返す。失敗時は error 入り。
+    """
+    return updater_mod.check_for_update(__version__)
+
+
+@app.post("/api/update_apply")
+def update_apply() -> dict:
+    """Windows のみ: 最新インストーラを取得して起動する（上書き更新が走る）。
+
+    それ以外のOSは何もせず html_url を返すので、フロントがリリースページを開く。
+    """
+    info = updater_mod.check_for_update(__version__)
+    if not info.get("has_update"):
+        return {"launched": False, "reason": "no_update", **info}
+    if info.get("system") == "windows" and info.get("download_url"):
+        try:
+            path = updater_mod.download_installer(
+                info["download_url"], UPLOAD_DIR.parent / "_update"
+            )
+            updater_mod.launch_installer(path)
+            return {"launched": True, "installer": str(path), **info}
+        except Exception as e:  # noqa: BLE001
+            return {"launched": False, "reason": f"error: {e}", **info}
+    # mac/linux は手動（フロントで html_url を開く）
+    return {"launched": False, "reason": "manual", **info}
 
 
 @app.post("/api/convert")

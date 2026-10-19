@@ -108,6 +108,9 @@ app = BUNDLE(
     bundle_identifier="com.fullocr.gui",
     info_plist={
         "NSHighResolutionCapable": True,
+        # Finder/Dock に出す表示名（バンドル名 FullOCR.app は変えずワークフロー維持）。
+        "CFBundleName": "Theta.FullOCR",
+        "CFBundleDisplayName": "Theta.FullOCR",
         # ネット越しにモデルをDLする（Docling/Gemini）。ATSでlocalhostも許可。
         "NSAppTransportSecurity": {"NSAllowsArbitraryLoads": True},
     },

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>FullOCR</title>
+<title>Theta.FullOCR</title>
 <style>
   :root{
     --bg:#f6f4ef; --panel:#ffffff; --ink:#1c1b19; --ink-soft:#6b6860;
@@ -161,10 +161,15 @@
 <body>
 <div class="wrap">
   <div class="topbar">
-    <h1>FullOCR <span id="appVersion" class="version"></span></h1>
+    <h1>Theta.FullOCR <span id="appVersion" class="version"></span></h1>
     <button class="btn" id="openSettings">⚙ 変換設定</button>
   </div>
   <p class="sub">自炊PDFを挿絵・目次つきの構造化Markdownに変換します。複数まとめてドラッグ&ドロップ可。</p>
+  <div id="updateBanner" style="display:none;margin:8px 0;padding:10px 14px;border-radius:8px;background:#eef6ff;border:1px solid #b6d4fe;font-size:13px;">
+    <span id="updateMsg"></span>
+    <button class="btn" id="updateBtn" style="margin-left:8px;">更新</button>
+    <button class="btn" id="updateDismiss" style="margin-left:4px;">あとで</button>
+  </div>
 
   <div class="dropzone" id="dropzone">
     <div class="icon">📄</div>
@@ -295,9 +300,37 @@ const checkedCache = {};  // name -> Set(feature)
 const expanded = new Set();
 let lastBooks = [];       // 直近のライブラリ一覧（プレビューのフォルダ解決用）
 
+// ---- 自動更新チェック（GitHub Releases） ----
+let _updateInfo = null;
+async function checkForUpdate(){
+  try{
+    const u = await (await fetch('/api/update_check')).json();
+    _updateInfo = u;
+    if(!u || !u.has_update) return;
+    $('updateMsg').textContent = '新しいバージョン '+u.latest+' があります（現在 v'+u.current+'）。';
+    $('updateBanner').style.display = 'block';
+  }catch(e){}
+}
+async function applyUpdate(){
+  if(!_updateInfo) return;
+  // Windows はインストーラを自動DL&起動（上書き更新）。それ以外はリリースページを開く。
+  if(_updateInfo.system === 'windows' && _updateInfo.download_url){
+    $('updateBtn').disabled = true; $('updateBtn').textContent = '更新中…';
+    try{
+      const r = await (await fetch('/api/update_apply',{method:'POST'})).json();
+      if(r && r.launched){ $('updateMsg').textContent = 'インストーラを起動しました。画面の指示に従って更新し、アプリを再起動してください。'; $('updateBtn').style.display='none'; }
+      else { window.open(_updateInfo.html_url,'_blank'); }
+    }catch(e){ window.open(_updateInfo.html_url,'_blank'); }
+    $('updateBtn').disabled = false; $('updateBtn').textContent = '更新';
+  } else {
+    window.open(_updateInfo.html_url,'_blank');
+  }
+}
+
 // ---- 起動時: バージョン・保存設定の読み込み ----
 window.addEventListener('DOMContentLoaded', async () => {
   try { const v = await (await fetch('/api/version')).json(); if(v&&v.version) $('appVersion').textContent='v'+v.version; } catch(e){}
+  checkForUpdate();
   try {
     const s = await (await fetch('/api/settings')).json();
     if (s && s.remember) {
@@ -316,6 +349,8 @@ function closeDrawer(){ $('overlay').classList.remove('open'); $('drawer').class
 $('openSettings').addEventListener('click', openDrawer);
 $('closeSettings').addEventListener('click', closeDrawer);
 $('overlay').addEventListener('click', closeDrawer);
+$('updateBtn').addEventListener('click', applyUpdate);
+$('updateDismiss').addEventListener('click', ()=>{ $('updateBanner').style.display='none'; });
 $('saveSettings').addEventListener('click', async () => { await persistSettings(); closeDrawer(); });
 
 function currentOpts(){

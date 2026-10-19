@@ -18,6 +18,7 @@ import threading
 import uvicorn
 import webview
 
+from .. import APP_NAME
 from .server import app
 
 HOST = "127.0.0.1"
@@ -69,7 +70,7 @@ def main() -> None:
     thread = threading.Thread(target=_run_server, daemon=True)
     thread.start()
     webview.create_window(
-        "FullOCR",
+        APP_NAME,
         f"http://{HOST}:{PORT}",
         width=820,
         height=900,
