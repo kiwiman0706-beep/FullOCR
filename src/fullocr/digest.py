@@ -34,6 +34,9 @@ _SYSTEM = (
     "出力は指定された JSON のみ。"
 )
 
+# ダイジェストの相互運用スキーム（FullOCR と Theta.Book.Hatch が共有。docs/digest-spec.md）。
+DIGEST_SCHEME = "theta-digest-1"
+
 
 class QA(BaseModel):
     q: str
@@ -228,7 +231,9 @@ def _mermaid_safe(label: str) -> str:
 def render_digest_md(digest: BookDigest, doc: Document, cfg: DigestConfig | None = None) -> str:
     cfg = cfg or DigestConfig()
     offset = _page_offset(doc)
+    pdf = doc.meta.pdf_name or ""
     out: list[str] = [
+        f'<!-- theta:digest scheme="{DIGEST_SCHEME}" generator="fullocr" pdf="{pdf}" -->',
         f"# {digest.title} — ダイジェスト",
         "> FullOCR が生成。各項目のリンクは原文PDF(#page)と生成MDの見出しを指します。"
         "要約文はAI、引用ページは原データに基づきます。\n",

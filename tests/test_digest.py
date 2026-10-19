@@ -59,6 +59,8 @@ def test_build_digest_and_source_links_are_grounded():
     digest = dg.build_digest(doc, client, DigestConfig())
     md = dg.render_digest_md(digest, doc, DigestConfig())
 
+    # 相互運用マーカー（Theta.Book.Hatch が検出に使う）
+    assert f'scheme="{dg.DIGEST_SCHEME}"' in md
     # 原文PDFリンクは IR のページ（第1章=p9）を指す（LLMには言わせていない）
     assert "[[神経内科_text.pdf#page=9|📄p.9]]" in md
     assert "[[神経内科_text.pdf#page=11|" in md
