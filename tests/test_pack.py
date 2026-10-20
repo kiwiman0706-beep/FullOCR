@@ -74,6 +74,18 @@ def test_pack_none_omits_pdf(tmp_path):
     assert man["pdf"]["mode"] == "none"
 
 
+def test_embedded_pdf_and_images_are_stored_text_is_deflated(tmp_path):
+    # すでに圧縮済みの PDF/PNG は無圧縮(STORED)、テキストは DEFLATE で入る。
+    cfg, book, pdf_name = _make_book(tmp_path)
+    r = pack.pack_book(cfg, book, pdf_mode="embed")
+    z = zipfile.ZipFile(r["jisui"])
+    info = {i.filename: i.compress_type for i in z.infolist()}
+    assert info[pdf_name] == zipfile.ZIP_STORED
+    assert info["attachments/p1.png"] == zipfile.ZIP_STORED
+    assert info["00_index.md"] == zipfile.ZIP_DEFLATED
+    assert info["jisui.json"] == zipfile.ZIP_DEFLATED
+
+
 def test_pack_missing_book_raises(tmp_path):
     cfg = PipelineConfig()
     cfg.out_dir = tmp_path / "out"

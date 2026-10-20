@@ -24,6 +24,14 @@ from .ir import Document
 
 JISUI_FORMAT = "jisui-1"
 
+# すでに圧縮済みの形式は ZIP で再圧縮しない（STORED）。PDF/画像/EPUB 等。
+# テキスト（.md/.json/.txt）だけ DEFLATE で縮める。
+_STORE_EXT = {".pdf", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".epub", ".zip"}
+
+
+def _ctype(path: Path) -> int:
+    return zipfile.ZIP_STORED if path.suffix.lower() in _STORE_EXT else zipfile.ZIP_DEFLATED
+
 
 def _load_meta(cfg: PipelineConfig, book: str):
     ir = cfg.work_dir / book / "ir.json"
@@ -84,6 +92,8 @@ def pack_book(cfg: PipelineConfig, book: str, *, pdf_mode: str = "embed") -> dic
 
     jisui_path = cfg.out_dir / f"{book}.jisui"
     embed = pdf_entry["mode"] == "embedded"
+    # アーカイブ既定は DEFLATE（テキスト向け）。各ファイルは _ctype で切替し、
+    # すでに圧縮済みの PDF/画像は STORED（無圧縮）で入れて再圧縮の無駄を避ける。
     with zipfile.ZipFile(jisui_path, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("jisui.json", json.dumps(manifest, ensure_ascii=False, indent=2))
         for f in sorted(out_book.rglob("*")):
@@ -91,7 +101,7 @@ def pack_book(cfg: PipelineConfig, book: str, *, pdf_mode: str = "embed") -> dic
                 continue
             if pdf_file and f == pdf_file and not embed:
                 continue  # 非同梱モードでは PDF を入れない
-            z.write(f, f.relative_to(out_book).as_posix())
+            z.write(f, f.relative_to(out_book).as_posix(), compress_type=_ctype(f))
 
     return {
         "book": book,
