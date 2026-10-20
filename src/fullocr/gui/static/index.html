@@ -16,10 +16,22 @@
     font-family:-apple-system,"Hiragino Sans","Yu Gothic",system-ui,sans-serif; line-height:1.6;
   }
   .wrap{max-width:940px; margin:0 auto; padding:24px 20px 60px;}
+  .app{max-width:1240px; margin:0 auto; padding:18px 22px 40px;}
+  .panes{display:flex; gap:18px; align-items:flex-start; margin-top:12px;}
+  .side{flex:0 0 310px; width:310px; display:flex; flex-direction:column; gap:16px; position:sticky; top:14px;}
+  .main{flex:1; min-width:0;}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px;}
+  .card-h{display:flex; align-items:center; gap:8px; font-size:12px; text-transform:uppercase;
+    letter-spacing:.04em; color:var(--ink-soft); font-weight:600; margin-bottom:10px;}
+  .tablewrap{border:1px solid var(--line); border-radius:8px; overflow:hidden;}
+  @media(max-width:880px){
+    .panes{flex-direction:column;}
+    .side{flex:none; width:auto; position:static;}
+  }
   .topbar{display:flex; align-items:baseline; justify-content:space-between; gap:12px;}
   h1{font-size:22px; margin:0; font-weight:700;}
   h1 .version{font-size:13px; font-weight:600; color:var(--accent); margin-left:6px;}
-  .sub{color:var(--ink-soft); font-size:13px; margin:4px 0 20px;}
+  .sub{color:var(--ink-soft); font-size:13px; margin:4px 0 14px;}
   .btn{padding:8px 13px; font-size:13px; white-space:nowrap; cursor:pointer;
     border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--ink);}
   .btn:hover{background:var(--accent-soft);}
@@ -27,12 +39,13 @@
 
   .dropzone{
     border:2px dashed var(--line); border-radius:10px; background:var(--panel);
-    padding:26px 20px; text-align:center; cursor:pointer; transition:border-color .15s, background .15s;
+    padding:16px 20px; text-align:center; cursor:pointer; transition:border-color .15s, background .15s;
+    display:flex; align-items:center; justify-content:center; gap:12px;
   }
   .dropzone.drag{border-color:var(--accent); background:var(--accent-soft);}
-  .dropzone .icon{font-size:28px;}
+  .dropzone .icon{font-size:22px;}
   .dropzone .main{font-size:14px; font-weight:600;}
-  .dropzone .hint{font-size:12px; color:var(--ink-soft); margin-top:2px;}
+  .dropzone .hint{font-size:12px; color:var(--ink-soft);}
   input[type=file]{display:none;}
 
   .filelist{margin-top:10px; display:flex; flex-wrap:wrap; gap:6px;}
@@ -55,14 +68,31 @@
   .banner{margin-top:14px; padding:10px 14px; border-radius:6px; font-size:13px;
     background:#f6dcdc; color:var(--bad); display:none;}
 
-  .section-head{display:flex; align-items:center; gap:12px; margin:26px 0 10px;}
+  .section-head{display:flex; align-items:center; gap:12px; margin:20px 0 10px;}
   .section-head h2{font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); margin:0; font-weight:600;}
   .section-head .sp{flex:1;}
   .ctl{padding:6px 12px; font-size:13px; cursor:pointer; border:1px solid var(--line); border-radius:6px; background:var(--panel); color:var(--ink);}
   .ctl:hover{background:var(--accent-soft);}
   .ctl.paused{background:var(--warn); color:#fff; border-color:var(--warn);}
+  .ctl.small{padding:4px 9px; font-size:12px;}
 
-  table{width:100%; border-collapse:collapse; font-size:13px; background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden;}
+  /* 進捗（キュー）リスト */
+  .queuelist{display:flex; flex-direction:column; gap:8px; max-height:420px; overflow-y:auto;}
+  .q-empty{color:var(--ink-soft); font-size:12px; padding:6px 2px;}
+  .qitem{border:1px solid var(--line); border-radius:8px; padding:8px 10px; background:var(--bg);}
+  .qitem .q-top{display:flex; align-items:center; gap:6px;}
+  .qitem .q-ic{flex:0 0 auto;}
+  .qitem .q-nm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; font-weight:600;}
+  .qitem .q-pct{font-size:11px; color:var(--accent); font-variant-numeric:tabular-nums;}
+  .qitem .q-step{font-size:11px; color:var(--ink-soft); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .qitem .q-actions{display:flex; gap:4px; margin-top:6px; flex-wrap:wrap;}
+  .qitem.err{border-color:var(--bad);}
+  .qitem.err .q-nm{color:var(--bad);}
+  .qbar{height:5px; background:var(--line); border-radius:99px; overflow:hidden; margin-top:6px;}
+  .qbar>span{display:block; height:100%; background:var(--accent); border-radius:99px; transition:width .4s ease;}
+
+  table{width:100%; border-collapse:collapse; font-size:13px; background:var(--panel);}
+  .tablewrap table{border:none; border-radius:0;}
   th,td{padding:8px 10px; text-align:left; border-bottom:1px solid var(--line); vertical-align:middle;}
   thead th{font-size:11px; text-transform:uppercase; color:var(--ink-soft); font-weight:500;}
   tbody tr:last-child td{border-bottom:none;}
@@ -98,10 +128,18 @@
 
   .console-head{display:flex; align-items:center; gap:8px;}
   .console-head .sp{flex:1;}
+  .logtoggle{border:none; background:none; cursor:pointer; font-size:13px; text-transform:uppercase;
+    letter-spacing:.04em; color:var(--ink-soft); font-weight:600; padding:0; display:inline-flex; align-items:center; gap:6px;}
+  .logtoggle .chev{transition:transform .15s; font-size:11px;}
+  .logwrap:not(.collapsed) .logtoggle .chev{transform:rotate(90deg);}
+  .logwrap.collapsed .console, .logwrap.collapsed .log-controls{display:none;}
+  .log-controls{display:flex; gap:8px;}
   .console{margin:0; padding:12px 14px; background:#2b2622; color:#e9e1d6; border-radius:8px;
     font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; font-size:12px; line-height:1.5;
     height:180px; overflow-y:auto; white-space:pre-wrap; word-break:break-word; user-select:text; cursor:text;}
   .console .ln{display:block;}
+  .console .ln.err{color:#e68a7a; white-space:pre-wrap;}
+  .logscope{font-size:12px; color:var(--accent); font-weight:600;}
   .console .ln .ts{color:#8f8578;} .console .ln .fn{color:#7fb3a6;} .console .ln .pc{color:#d8a657;}
   .console .ln.stage{color:#a9d3c4;} .console .ln.engine{color:#b3aa9c;}
 
@@ -159,63 +197,84 @@
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="app">
   <div class="topbar">
     <h1>Theta.FullOCR <span id="appVersion" class="version"></span></h1>
+    <span class="grow"></span>
     <button class="btn" id="openSettings">⚙ 変換設定</button>
   </div>
-  <p class="sub">自炊PDFを挿絵・目次つきの構造化Markdownに変換します。複数まとめてドラッグ&ドロップ可。</p>
   <div id="updateBanner" style="display:none;margin:8px 0;padding:10px 14px;border-radius:8px;background:#eef6ff;border:1px solid #b6d4fe;font-size:13px;">
     <span id="updateMsg"></span>
     <button class="btn" id="updateBtn" style="margin-left:8px;">更新</button>
     <button class="btn" id="updateDismiss" style="margin-left:4px;">あとで</button>
   </div>
 
-  <div class="dropzone" id="dropzone">
-    <div class="icon">📄</div>
-    <div class="main">ここにPDFをドラッグ&ドロップ</div>
-    <div class="hint">またはクリックして選択（複数可）</div>
-    <input type="file" id="fileInput" accept="application/pdf" multiple />
-  </div>
-  <div class="filelist" id="fileList"></div>
+  <div class="panes">
+    <aside class="side">
+      <section class="card">
+        <div class="card-h">変換</div>
+        <div class="dropzone" id="dropzone">
+          <div class="icon">📄</div>
+          <div><div class="main">PDFをドロップ</div>
+          <div class="hint">またはクリックで選択（複数可）</div></div>
+          <input type="file" id="fileInput" accept="application/pdf" multiple />
+        </div>
+        <div class="filelist" id="fileList"></div>
+        <div class="row">
+          <input type="text" class="path" id="outDir" placeholder="保存先（未指定なら ~/FullOCR/out）" readonly />
+        </div>
+        <div class="row">
+          <button type="button" class="btn" id="browseBtn">参照…</button>
+          <button type="button" class="btn" id="clearOutBtn">既定</button>
+          <span class="grow"></span>
+          <button class="primary" id="startBtn" disabled>変換開始 ▶</button>
+        </div>
+        <div class="muted" id="stageInfo" style="margin-top:8px;">待機に追加: 0冊</div>
+      </section>
 
-  <div class="row">
-    <input type="text" class="path" id="outDir" placeholder="保存先（未指定なら ~/FullOCR/out）— Obsidian保管庫を選べます" readonly />
-    <button type="button" class="btn" id="browseBtn">参照…</button>
-    <button type="button" class="btn" id="clearOutBtn">既定</button>
-  </div>
-  <div class="row">
-    <span class="muted" id="stageInfo">待機に追加: 0冊</span>
-    <span class="grow"></span>
-    <button class="primary" id="startBtn" disabled>変換開始 ▶</button>
+      <section class="card">
+        <div class="card-h">進捗 <span id="queueCount" class="muted"></span>
+          <span class="grow"></span>
+          <button type="button" class="ctl small" id="pauseBtn">一時停止</button>
+          <button type="button" class="ctl small" id="stopBtn">中止</button>
+        </div>
+        <div class="queuelist" id="queueList"><div class="q-empty">実行中・待機中のジョブはありません</div></div>
+      </section>
+    </aside>
+
+    <main class="main">
+      <div class="banner" id="banner"></div>
+      <div class="section-head">
+        <h2>ライブラリ <span id="libCount" class="muted"></span></h2>
+      </div>
+      <div class="tablewrap">
+        <table>
+          <thead><tr>
+            <th class="col-x"></th><th>書籍</th>
+            <th class="col-st">OCR</th><th class="col-st">レイ</th><th class="col-st">生成</th>
+            <th>AI処理（☑選択 → 概算 → 実行）</th>
+          </tr></thead>
+          <tbody id="libBody"></tbody>
+        </table>
+      </div>
+      <div class="legend">段階: ✓済 / – 未 / ⚠失敗 　　AI: □未 ✅済 　「概算」で¥表示（課金なし）／「実行」で選択処理を後付け（OCR再実行なし）</div>
+    </main>
   </div>
 
-  <div class="banner" id="banner"></div>
-
-  <div class="section-head">
-    <h2>ライブラリ <span id="libCount" class="muted"></span></h2>
-    <span class="sp"></span>
-    <button type="button" class="ctl" id="pauseBtn">一時停止</button>
-    <button type="button" class="ctl" id="stopBtn">中止</button>
+  <div class="logwrap collapsed" id="logwrap">
+    <div class="section-head">
+      <button type="button" class="logtoggle" id="logToggle"><span class="chev">▸</span> ログ</button>
+      <span class="logscope" id="logScope"></span>
+      <span class="sp"></span>
+      <span class="log-controls">
+        <button type="button" class="ctl" id="logAllBtn" style="display:none;">◀ 全体</button>
+        <button type="button" class="ctl" id="copyLogBtn">📋コピー</button>
+        <button type="button" class="ctl" id="engineLogBtn">エンジン詳細: ON</button>
+        <button type="button" class="ctl" id="autoscrollBtn">自動スクロール: ON</button>
+      </span>
+    </div>
+    <div class="console" id="console"></div>
   </div>
-  <table>
-    <thead><tr>
-      <th class="col-x"></th><th>書籍</th>
-      <th class="col-st">OCR</th><th class="col-st">レイ</th><th class="col-st">生成</th>
-      <th>AI処理（☑選択 → 概算 → 実行）</th>
-    </tr></thead>
-    <tbody id="libBody"></tbody>
-  </table>
-  <div class="legend">段階: ✓済 / – 未 / ⚠失敗 　　AI: □未 ✅済 　「概算」で¥表示（課金なし）／「実行」で選択処理を後付け（OCR再実行なし）</div>
-
-  <div class="section-head">
-    <h2>ログ</h2>
-    <span class="sp"></span>
-    <button type="button" class="ctl" id="copyLogBtn">📋コピー</button>
-    <button type="button" class="ctl" id="engineLogBtn">エンジン詳細: ON</button>
-    <button type="button" class="ctl" id="autoscrollBtn">自動スクロール: ON</button>
-  </div>
-  <div class="console" id="console"></div>
 </div>
 
 <!-- 設定ドロワー -->
@@ -590,11 +649,11 @@ function detailRow(book, span){
   parts.push(`<div class="kv detail">AI適用: ${esc(aiLines.join(' / '))}</div>`);
   if(job && job.status==='error'){
     parts.push(`<div class="err-msg">${esc(job.error||'エラー')}</div>`);
-    if(job.traceback) parts.push(`<pre>${esc(job.traceback)}</pre>`);
-    if(job.log_path) parts.push(`<div class="kv">ログ: <span class="openlink" data-open="${esc(job.log_path)}">${esc(job.log_path)}</span></div>`);
+    parts.push(`<div class="kv"><span class="openlink" data-log="${esc(book.name)}">🧾 この本のログを見る</span>${job.log_path?` ・<span class="openlink" data-open="${esc(job.log_path)}">ログファイル</span>`:''}</div>`);
   }
   td.innerHTML = `<div class="detail">${parts.join('')}</div>`;
   td.querySelectorAll('[data-open]').forEach(el=>el.addEventListener('click',()=>openFolder(el.getAttribute('data-open'))));
+  td.querySelectorAll('[data-log]').forEach(el=>el.addEventListener('click',()=>focusBookLog(el.getAttribute('data-log'))));
   tr.appendChild(td);
   return tr;
 }
@@ -626,40 +685,50 @@ function renderLibrary(books){
     tr.appendChild(stageCell(st.render));
     tr.appendChild(aiCell(book));
     body.appendChild(tr);
+    if(expanded.has(book.name)) body.appendChild(detailRow(book, 6));
+  }
+}
 
-    // 実行中/失敗/待機のサブ行
-    if(job && job.status==='processing'){
-      const sr=document.createElement('tr'); sr.className='subrow';
-      const td=document.createElement('td'); td.colSpan=6;
-      td.innerHTML = `<div class="progress-meta"><span>${esc(job.step||'処理中…')}</span><span class="pct">${job.percent||0}%</span></div>`+
-        `<div class="progress-bar"><span style="width:${job.percent||0}%"></span></div>`;
-      sr.appendChild(td); body.appendChild(sr);
-    } else if(job && job.status==='error'){
-      const sr=document.createElement('tr'); sr.className='subrow';
-      const td=document.createElement('td'); td.colSpan=6;
-      const b=document.createElement('button'); b.className='btn small'; b.textContent='🔁 リトライ';
-      b.onclick=()=>retryBook(book.name);
-      td.innerHTML = `<span class="err-msg">失敗: ${esc(job.error||'')}</span> `;
-      td.appendChild(b);
-      const more=document.createElement('button'); more.className='btn small'; more.textContent='詳細';
-      more.onclick=()=>{ expanded.has(book.name)?expanded.delete(book.name):expanded.add(book.name); pollAll(); };
-      td.appendChild(more);
-      sr.appendChild(td); body.appendChild(sr);
-    } else if(job && job.pending){
-      const sr=document.createElement('tr'); sr.className='subrow';
-      const td=document.createElement('td'); td.colSpan=6;
+// 進捗（キュー）リスト：実行中・待機中・失敗のジョブを左ペインに一覧表示する。
+function renderQueue(books){
+  const list=$('queueList'); const items=[];
+  for(const book of books){
+    const job=book.job; if(!job) continue;
+    if(job.traceback) bookTrace[book.name]=job.traceback;
+    const div=document.createElement('div'); div.className='qitem';
+    if(job.status==='processing'){
+      div.innerHTML =
+        `<div class="q-top"><span class="q-ic">⏳</span><span class="q-nm">${esc(book.name)}</span><span class="q-pct">${job.percent||0}%</span></div>`+
+        `<div class="q-step">${esc(job.step||'処理中…')}</div>`+
+        `<div class="qbar"><span style="width:${job.percent||0}%"></span></div>`;
+      items.push([0, div]);
+    } else if(job.status==='error'){
+      div.className='qitem err';
+      div.innerHTML = `<div class="q-top"><span class="q-ic">⚠</span><span class="q-nm">${esc(book.name)}</span></div>`+
+        `<div class="q-step">失敗: ${esc(job.error||'')}</div>`;
+      const act=document.createElement('div'); act.className='q-actions';
+      const rb=document.createElement('button'); rb.className='btn small'; rb.textContent='🔁 リトライ'; rb.onclick=()=>retryBook(book.name);
+      const lb=document.createElement('button'); lb.className='btn small'; lb.textContent='🧾 ログ'; lb.onclick=()=>focusBookLog(book.name);
+      act.append(rb, lb); div.appendChild(act);
+      items.push([1, div]);
+    } else if(job.pending){
+      div.innerHTML = `<div class="q-top"><span class="q-ic">•</span><span class="q-nm">${esc(book.name)}</span><span class="q-pct">待機</span></div>`;
+      const act=document.createElement('div'); act.className='q-actions';
       const mk=(txt,fn)=>{ const x=document.createElement('button'); x.className='btn small'; x.textContent=txt; x.onclick=fn; return x; };
-      td.innerHTML='<span class="muted">待機中 </span>';
-      td.append(
+      act.append(
         mk('↑', ()=>ctl(`/api/jobs/${job.job_id}/move?direction=up`)),
         mk('↓', ()=>ctl(`/api/jobs/${job.job_id}/move?direction=down`)),
         mk('スキップ', ()=>ctl(`/api/jobs/${job.job_id}/skip`)),
       );
-      sr.appendChild(td); body.appendChild(sr);
+      div.appendChild(act);
+      items.push([2, div]);
     }
-
-    if(expanded.has(book.name)) body.appendChild(detailRow(book, 6));
   }
+  items.sort((a,b)=>a[0]-b[0]);
+  list.innerHTML='';
+  if(!items.length){ list.innerHTML='<div class="q-empty">実行中・待機中のジョブはありません</div>'; }
+  else { for(const [,el] of items) list.appendChild(el); }
+  $('queueCount').textContent = items.length ? `(${items.length})` : '';
 }
 
 // ---- MDプレビュー ----
@@ -741,6 +810,23 @@ $('pvOpenFolder').addEventListener('click', ()=>{ const b=pvBook; const book=(la
 // ---- ログコンソール ----
 const consoleEl=$('console');
 let autoscroll=true, showEngine=true, lastLog=[];
+let logFilterBook=null; const bookTrace={};
+function focusBookLog(name){
+  logFilterBook=name;
+  $('logwrap').classList.remove('collapsed');
+  updateLogScope(); renderConsole(lastLog);
+  consoleEl.scrollTop=consoleEl.scrollHeight;
+  $('logwrap').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+function updateLogScope(){
+  $('logScope').textContent = logFilterBook ? ('— '+logFilterBook) : '';
+  $('logAllBtn').style.display = logFilterBook ? '' : 'none';
+}
+$('logAllBtn').addEventListener('click',()=>{ logFilterBook=null; updateLogScope(); renderConsole(lastLog); });
+$('logToggle').addEventListener('click',()=>{
+  const w=$('logwrap'); w.classList.toggle('collapsed');
+  if(!w.classList.contains('collapsed') && autoscroll) consoleEl.scrollTop=consoleEl.scrollHeight;
+});
 $('autoscrollBtn').addEventListener('click',()=>{ autoscroll=!autoscroll; $('autoscrollBtn').textContent='自動スクロール: '+(autoscroll?'ON':'OFF'); });
 $('engineLogBtn').addEventListener('click',()=>{ showEngine=!showEngine; $('engineLogBtn').textContent='エンジン詳細: '+(showEngine?'ON':'OFF'); renderConsole(lastLog); });
 function logAsText(){ return lastLog.filter(e=>showEngine||e.kind!=='engine').map(e=>`${e.t}\t${e.file}\t${e.msg}${e.percent==null?'':' '+e.percent+'%'}`).join('\n'); }
@@ -752,10 +838,19 @@ $('copyLogBtn').addEventListener('click', async ()=>{
 });
 function renderConsole(log){
   if(!Array.isArray(log)) return; lastLog=log;
-  consoleEl.innerHTML = log.filter(e=>showEngine||e.kind!=='engine').map(e=>{
+  let items = log.filter(e=>showEngine||e.kind!=='engine');
+  if(logFilterBook){
+    const key=logFilterBook, stem=key.replace(/\.pdf$/i,'');
+    items = items.filter(e=> e.file && (e.file.includes(key) || e.file.includes(stem) || key.includes(e.file.replace(/\.pdf$/i,''))));
+  }
+  let html = items.map(e=>{
     const pct=(e.percent==null)?'':` <span class="pc">${e.percent}%</span>`;
     return `<span class="ln ${e.kind||'event'}"><span class="ts">${esc(e.t)}</span> <span class="fn">${esc(e.file)}</span> ${esc(e.msg)}${pct}</span>`;
   }).join('');
+  if(logFilterBook && bookTrace[logFilterBook]){
+    html += `<span class="ln err">${esc(bookTrace[logFilterBook])}</span>`;
+  }
+  consoleEl.innerHTML = html || '<span class="ln" style="color:#8f8578;">（ログはまだありません）</span>';
   if(autoscroll) consoleEl.scrollTop=consoleEl.scrollHeight;
 }
 
@@ -768,6 +863,7 @@ async function pollAll(){
       fetch('/api/status').then(r=>r.json()),
     ]);
     renderLibrary(Array.isArray(books)?books:[]);
+    renderQueue(Array.isArray(books)?books:[]);
     renderConsole(st.log);
     paused=!!st.paused;
     $('pauseBtn').textContent = paused?'再開':'一時停止';
