@@ -126,6 +126,7 @@ exe = EXE(
     name="fullocr-gui",
     console=False,
     onefile=False,
+    icon=os.path.join(SPECPATH, "icon.ico"),  # noqa: F821 (SPECPATH injected by PyInstaller)
 )
 
 coll = COLLECT(

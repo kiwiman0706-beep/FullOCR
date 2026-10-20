@@ -46,6 +46,10 @@ SolidCompression=yes
 WizardStyle=modern
 ; Show the version in the wizard title bar.
 AppVerName={#MyAppName} {#MyAppVersion}
+; アプリ機能が伝わるアイコン（packaging\icon.ico、SourceDir=.. からの相対）。
+; インストーラ自身のアイコンと、プログラムと機能(アンインストール)の表示アイコン。
+SetupIconFile=packaging\icon.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
 ; Reinstalling on top of an existing install upgrades in place (same AppId),
 ; so don't nag with the "already installed" prompt.
 UsePreviousAppDir=yes

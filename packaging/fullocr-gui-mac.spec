@@ -121,7 +121,7 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name="FullOCR.app",
-    icon=None,
+    icon=os.path.join(SPECPATH, "icon.icns"),  # noqa: F821 (SPECPATH injected by PyInstaller)
     bundle_identifier="com.fullocr.gui",
     info_plist={
         "NSHighResolutionCapable": True,

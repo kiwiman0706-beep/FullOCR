@@ -179,6 +179,12 @@ def index() -> HTMLResponse:
     return HTMLResponse(html, headers={"Cache-Control": "no-store"})
 
 
+@app.get("/icon.png")
+def app_icon() -> Response:
+    """GUI ウィンドウ/タブ用のアイコン（favicon）。"""
+    return FileResponse(STATIC_DIR / "icon.png", media_type="image/png")
+
+
 @app.get("/api/version")
 def version() -> dict:
     """画面に出すアプリ名とバージョン（ビルド時に __init__.py へ焼き込まれる）。"""
