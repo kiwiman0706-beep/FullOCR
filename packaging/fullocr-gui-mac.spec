@@ -30,12 +30,29 @@ for pkg in (
     "docling_ibm_models",
     "rapidocr",
     "transformers",
+    "latex2mathml",
     "webview",
 ):
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b
     hiddenimports += h
+
+# latex2mathml は数式変換時に自パッケージ内 unimathsymbols.txt を読む。collect_all が
+# 取りこぼすと凍結後に FileNotFoundError(.../latex2mathml/unimathsymbols.txt) で落ちるため、
+# データファイルを os.walk で確実に同梱する（docling がレイアウト解析で間接利用）。
+try:
+    import latex2mathml  # noqa: E402
+
+    _l2m_root = os.path.dirname(latex2mathml.__file__)
+    _l2m_parent = os.path.dirname(_l2m_root)
+    for _dirpath, _dirnames, _filenames in os.walk(_l2m_root):
+        _rel = os.path.relpath(_dirpath, _l2m_parent)
+        for _fn in _filenames:
+            if not _fn.endswith(".py"):
+                datas.append((os.path.join(_dirpath, _fn), _rel))
+except Exception:  # noqa: BLE001
+    pass
 
 # docling-parse は実行時に自パッケージ内 pdf_resources/（グリフ表 *.dat 等）を読む。
 # collect_all がこのツリーの一部を取りこぼし、凍結後に

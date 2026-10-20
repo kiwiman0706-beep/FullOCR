@@ -82,6 +82,9 @@ jobs:
           $st = Get-ChildItem -Recurse -File $m -Filter *.safetensors -ErrorAction SilentlyContinue
           if (!$st) { Write-Error "No .safetensors under $m - Docling layout model not bundled"; exit 1 }
           Write-Host "OK: Docling models bundled ($($st.Count) safetensors)"
+          $u = Get-ChildItem -Recurse -File "dist\fullocr-gui\_internal" -Filter unimathsymbols.txt -ErrorAction SilentlyContinue
+          if (!$u) { Write-Error "Missing latex2mathml/unimathsymbols.txt - docling math data not bundled"; exit 1 }
+          Write-Host "OK: latex2mathml data present"
 
       # --- NDLOCR-Lite: separate license/deps, built as its own companion exe ---
       - name: Clone NDLOCR-Lite

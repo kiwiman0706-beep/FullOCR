@@ -60,6 +60,18 @@ jobs:
         working-directory: fullocr
         run: .venv/bin/pyinstaller packaging/fullocr-gui-mac.spec
 
+      - name: Verify bundled data (docling + latex2mathml)
+        working-directory: fullocr
+        run: |
+          APP="dist/FullOCR.app/Contents"
+          if ! find "$APP" -name additional.dat | grep -q .; then
+            echo "Missing docling_parse additional.dat"; exit 1; fi
+          if ! find "$APP" -name '*.safetensors' | grep -q .; then
+            echo "No .safetensors - Docling layout model not bundled"; exit 1; fi
+          if ! find "$APP" -name unimathsymbols.txt | grep -q .; then
+            echo "Missing latex2mathml/unimathsymbols.txt - docling math data not bundled"; exit 1; fi
+          echo "OK: docling + latex2mathml data bundled"
+
       # --- NDLOCR-Lite: separate license/deps, built as its own companion ---
       - name: Clone NDLOCR-Lite
         run: git clone --depth 1 https://github.com/ndl-lab/ndlocr-lite.git ndlocr-lite-src
