@@ -126,7 +126,7 @@ def _run_one(job: Job) -> None:
     def _on_output(line: str) -> None:
         manager.log_line(job.id, line)
 
-    if kind in ("postprocess", "index_terms", "digest"):
+    if kind in ("postprocess", "index_terms", "digest", "pack"):
         name = job.meta["name"]
         try:
             if kind == "index_terms":
@@ -138,6 +138,14 @@ def _run_one(job: Job) -> None:
                 _on_output(f"_digest.md ({r['sections']}節) を書き出しました")
                 if "epub" in r:
                     _on_output(f"EPUB: {r['epub']}")
+                _on_step(100, "完了")
+            elif kind == "pack":
+                from ..pack import pack_book
+                _on_step(20, ".jisui にまとめています…")
+                r = pack_book(cfg, name, pdf_mode=job.meta.get("pdf_mode", "embed"))
+                _on_output(f".jisui: {r['jisui']} [PDF:{r['pdf_mode']}]")
+                if r.get("sidecar"):
+                    _on_output(f"隣に配置: {r['sidecar']}")
                 _on_step(100, "完了")
             else:
                 postprocess_book(cfg, name, job.meta["features"],
@@ -409,6 +417,22 @@ async def digest_api(request: Request) -> dict:
         filename=name, path=name, output_dir=str(cfg.out_dir / name),
         meta={"cfg": cfg, "kind": "digest", "name": name,
               "epub": bool(data.get("epub", False))},
+    )
+    return {"ok": True, "job_id": job_id}
+
+
+@app.post("/api/pack")
+async def pack_api(request: Request) -> dict:
+    """変換結果を 1ファイルの .jisui にまとめる（ジョブ）。pdf_mode: embed|sidecar|none。"""
+    data = await request.json()
+    name = (data.get("book") or "").strip()
+    if not name:
+        return {"ok": False, "error": "書籍が指定されていません"}
+    cfg = _library_cfg(data.get("out_dir", ""))
+    mode = data.get("pdf_mode") or "embed"
+    job_id = manager.enqueue(
+        filename=name, path=name, output_dir=str(cfg.out_dir / name),
+        meta={"cfg": cfg, "kind": "pack", "name": name, "pdf_mode": mode},
     )
     return {"ok": True, "job_id": job_id}
 

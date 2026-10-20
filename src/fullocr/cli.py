@@ -7,6 +7,7 @@
     fullocr render work/book/ir.json      IR(補正済み含む)から Markdown 再生成
     fullocr eval work/                    目次(TOC)精度を評価（PDCAの物差し）
     fullocr digest work/book/             AI要約・マインドマップ・一問一答を生成（ソースリンク付き）
+    fullocr pack work/book/               1ファイルの .jisui（ZIP）にまとめる
 """
 
 from __future__ import annotations
@@ -245,6 +246,43 @@ def digest_cmd(
             return
         extra = f" + {r['epub']}" if "epub" in r else ""
         console.print(f"[green]{name}: {r['sections']}節[/] → {r['md']}{extra}")
+
+    ir = target if target.suffix == ".json" else target / "ir.json"
+    if ir.exists():
+        _one(ir.parent.parent, ir.parent.name)
+        return
+    books = sorted(p for p in target.glob("*/ir.json"))
+    if not books:
+        console.print(f"[red]ir.json が見つかりません:[/] {target}")
+        raise typer.Exit(1)
+    for p in books:
+        _one(p.parent.parent, p.parent.name)
+
+
+@app.command("pack")
+def pack_cmd(
+    target: Path = typer.Argument(..., help="ir.json、work/<book>/、または work/（全書籍）"),
+    config: Path | None = typer.Option(None, "--config", "-c", help="設定 JSON"),
+    pdf: str = typer.Option("embed", "--pdf", help="原典PDFの扱い: embed（同梱）/ sidecar（隣に .pdf）/ none"),
+):
+    """変換結果を 1ファイルの .jisui（ZIP＋マニフェスト）にまとめる。
+
+    out/<book>.jisui を書き出す。ビューワ(Theta.Book.Hatch)がダブルクリックで開く想定。
+    --pdf sidecar では .jisui の隣に <book>.pdf も置く（該当ページPDFを開く用）。
+    """
+    from .pack import pack_book
+
+    cfg = _load_cfg(config)
+
+    def _one(work_dir: Path, name: str) -> None:
+        cfg.work_dir = work_dir
+        try:
+            r = pack_book(cfg, name, pdf_mode=pdf)
+        except Exception as e:  # noqa: BLE001
+            console.print(f"[red]{name}: {e}[/]")
+            return
+        extra = f"（隣に {Path(r['sidecar']).name}）" if r.get("sidecar") else ""
+        console.print(f"[green]{name}[/] → {r['jisui']}  [PDF:{r['pdf_mode']}]{extra}")
 
     ir = target if target.suffix == ".json" else target / "ir.json"
     if ir.exists():
