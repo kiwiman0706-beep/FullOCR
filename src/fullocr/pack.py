@@ -23,6 +23,9 @@ from .config import PipelineConfig
 from .ir import Document
 
 JISUI_FORMAT = "jisui-1"
+# EPUB 同様、ZIP 先頭に無圧縮で置く種別判別用エントリと、その内容（MIME）。
+MIMETYPE = "application/x-jisui"
+MANIFEST_NAME = "theta-book.json"
 
 # すでに圧縮済みの形式は ZIP で再圧縮しない（STORED）。PDF/画像/EPUB 等。
 # テキスト（.md/.json/.txt）だけ DEFLATE で縮める。
@@ -33,14 +36,17 @@ def _ctype(path: Path) -> int:
     return zipfile.ZIP_STORED if path.suffix.lower() in _STORE_EXT else zipfile.ZIP_DEFLATED
 
 
-def _load_meta(cfg: PipelineConfig, book: str):
+def _load_doc_meta(cfg: PipelineConfig, book: str):
+    """(meta, page_offset) を work/<book>/ir.json から読む。無ければ (None, None)。"""
     ir = cfg.work_dir / book / "ir.json"
-    if ir.exists():
-        try:
-            return Document.load(ir).meta
-        except Exception:  # noqa: BLE001
-            return None
-    return None
+    if not ir.exists():
+        return None, None
+    try:
+        doc = Document.load(ir)
+    except Exception:  # noqa: BLE001
+        return None, None
+    from .render.markdown import _page_offset
+    return doc.meta, _page_offset(doc)
 
 
 def _find_pdf(out_book: Path, pdf_name: str | None) -> Path | None:
@@ -56,7 +62,7 @@ def pack_book(cfg: PipelineConfig, book: str, *, pdf_mode: str = "embed") -> dic
     if not (out_book / "00_index.md").exists():
         raise FileNotFoundError(f"変換結果がありません: {out_book}")
 
-    meta = _load_meta(cfg, book)
+    meta, page_offset = _load_doc_meta(cfg, book)
     pdf_name = meta.pdf_name if meta else None
     pdf_file = _find_pdf(out_book, pdf_name)
     if pdf_file and not pdf_name:
@@ -83,6 +89,8 @@ def pack_book(cfg: PipelineConfig, book: str, *, pdf_mode: str = "embed") -> dic
         "generator": f"fullocr {__version__}",
         "created": time.strftime("%Y-%m-%d"),
     }
+    if page_offset is not None:
+        manifest["page_offset"] = page_offset
     if (out_book / "_digest.md").exists():
         manifest["digest"] = "theta-digest-1"
     if meta and meta.isbn:
@@ -95,7 +103,9 @@ def pack_book(cfg: PipelineConfig, book: str, *, pdf_mode: str = "embed") -> dic
     # アーカイブ既定は DEFLATE（テキスト向け）。各ファイルは _ctype で切替し、
     # すでに圧縮済みの PDF/画像は STORED（無圧縮）で入れて再圧縮の無駄を避ける。
     with zipfile.ZipFile(jisui_path, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr("jisui.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+        # EPUB 同様、先頭に無圧縮の mimetype を置く（中身を開かず種別判別できる）。
+        z.writestr("mimetype", MIMETYPE, compress_type=zipfile.ZIP_STORED)
+        z.writestr(MANIFEST_NAME, json.dumps(manifest, ensure_ascii=False, indent=2))
         for f in sorted(out_book.rglob("*")):
             if f.is_dir():
                 continue

@@ -5,7 +5,7 @@ FullOCR が作った Obsidian Vault 形式の変換結果（複数の Markdown �
 ための形式。**Theta.Book.Hatch**（ビューワ）がダブルクリックで開く。
 
 - 形式識別子: **`jisui-1`**
-- 中身: **ZIP**（DEFLATE）。ルートに `jisui.json`（マニフェスト）＋ Vault 一式。
+- 中身: **ZIP**（DEFLATE）。先頭に `mimetype`、ルートに `theta-book.json`（マニフェスト）＋ Vault 一式。
 - 関連仕様: ページ対応 [`page-anchor-spec.md`](./page-anchor-spec.md)（`fullocr-1`）、
   ダイジェスト [`digest-spec.md`](./digest-spec.md)（`theta-digest-1`）。
 - 役割: **FullOCR** が書き出し（`fullocr pack` / GUI 📦）、**Theta.Book.Hatch** が読み取り＋拡張子登録。
@@ -26,7 +26,8 @@ FullOCR が作った Obsidian Vault 形式の変換結果（複数の Markdown �
 
 ```
 <book>.jisui  (ZIP)
-├── jisui.json                 # マニフェスト（必須・ルート直下）
+├── mimetype                   # 先頭・無圧縮。内容 = application/x-jisui（EPUB流の種別判別）
+├── theta-book.json            # マニフェスト（目録）
 ├── 00_index.md                # エントリ（目次）
 ├── <章>.md …                  # 本文（1冊1ファイル、または章分割）
 ├── attachments/               # 挿絵・表の画像
@@ -37,8 +38,12 @@ FullOCR が作った Obsidian Vault 形式の変換結果（複数の Markdown �
 └── <book>_text.pdf            # 任意: 原典PDF（pdf.mode=embedded のとき同梱）
 ```
 
+- **先頭エントリは `mimetype`**（無圧縮・内容 `application/x-jisui`）。EPUB と同じく、
+  中身を展開せずファイル先頭を見るだけで `.jisui` と判別できる。
 - ファイル名・フォルダ構成は `out/<book>/` をそのまま入れる（相対パスで格納）。
 - MD 内部の画像・PDF リンクは Vault 相対のまま。ビューアは ZIP 内相対で解決する。
+- **`.jisui` は書き換えない（読み取り専用の配布物）**。読書位置・栞・メモ・アプリ生成の
+  AI要約などはビューア側に保存し、`.jisui` 本体には書き込まない。
 
 ### 2.1 圧縮方式（エントリ単位）
 
@@ -57,7 +62,7 @@ ZIP は**エントリごとに圧縮方式を変える**。すでに圧縮済み
 
 ---
 
-## 3. マニフェスト `jisui.json`
+## 3. マニフェスト `theta-book.json`
 
 ```json
 {
@@ -67,21 +72,23 @@ ZIP は**エントリごとに圧縮方式を変える**。すでに圧縮済み
   "entry": "00_index.md",
   "pdf": { "mode": "embedded", "name": "ねころん_text.pdf" },
   "page_anchors": "fullocr-1",
+  "page_offset": 8,
   "digest": "theta-digest-1",
   "isbn": "9784840000000",
   "publisher": "…",
-  "generator": "fullocr 0.13.1",
+  "generator": "fullocr 0.14.0",
   "created": "2026-10-20"
 }
 ```
 
 | キー | 必須 | 意味 |
 |---|---|---|
-| `format` | ✅ | `jisui-1`。これで `.jisui` と判定。 |
+| `format` | ✅ | `jisui-1`。これで `.jisui` と判定（`mimetype` と二重で担保）。 |
 | `title` / `author` | | 表示用（なければファイル名）。 |
 | `entry` | ✅ | 最初に開く MD（通常 `00_index.md`）。 |
 | `pdf` | ✅ | 原典PDFの所在（§4）。 |
 | `page_anchors` | | 本文がページアンカー対応なら `fullocr-1`。 |
+| `page_offset` | | `印刷ページ = pdf_page − offset`。算用数字ノンブルが安定して取れた時のみ。 |
 | `digest` | | `_digest.md` があれば `theta-digest-1`。 |
 | `isbn` / `publisher` | | 書誌（取得済みのとき）。 |
 | `generator` / `created` | | 生成元・日付。 |
@@ -113,7 +120,7 @@ ZIP は**エントリごとに圧縮方式を変える**。すでに圧縮済み
 ## 5. Theta.Book.Hatch 側の実装
 
 ### 5.1 開く
-1. `.jisui` を ZIP として開き、`jisui.json` を読む（`format` 確認）。
+1. `.jisui` を ZIP として開き、`mimetype`（= application/x-jisui）と `theta-book.json`（`format`）で判定。
 2. `entry`（`00_index.md`）から Vault を描画。画像・章リンクは ZIP 内相対で解決。
 3. 「原文を見る」→ §4 の手順でPDFを開き、`#page=N` のページへ。
 4. `_digest.md` があれば `digest-spec` に従って要約/マインドマップを表示。
@@ -133,6 +140,13 @@ ZIP は**エントリごとに圧縮方式を変える**。すでに圧縮済み
 
 MIME の推奨値: `application/x-jisui`（内部は ZIP なので `application/zip` 互換）。
 
+### 5.3 Android の注意（sidecar PDF）
+
+Android では、ユーザーが「開いた1ファイル」以外へのアクセス権が既定で得られない。
+`pdf.mode=sidecar`（外部PDF）の場合、隣の `<book>.pdf` を開くには**初回だけ**
+「そのフォルダへのアクセス許可」をユーザーに求める必要がある（SAF のツリー権限）。
+→ **Android で使う本は `embedded`（PDF同梱）を推奨**。`.jisui` 1ファイルで完結する。
+
 ---
 
 ## 6. FullOCR 側（書き出し）
@@ -146,9 +160,15 @@ fullocr pack work/ --pdf none        # 全書籍、PDFなし
 - GUI: 各書籍行の **📦.jisui**（同梱 or sidecar を選択）。
 - 出力先は `out/`（保存先に Obsidian 保管庫を指定していればその隣）。
 
+> **フォルダと `.jisui` は両方使える。** FullOCR の変換は常に `out/<book>/` フォルダを
+> 出力する（Obsidian で直接開ける）。`.jisui` はそれを1ファイルにまとめた**追加の配布物**で、
+> 元フォルダは消さない。ZIP 化すると Obsidian では直接開けないため、「フォルダのまま使う」
+> 「`.jisui` にまとめる」を用途で使い分けられる。
+> NAS 上の `.jisui` も Theta.Book.Hatch が1冊として本棚に並べられる。
+
 ---
 
 ## 7. バージョニング
 
 - 現行 `jisui-1`。破壊的変更時は `jisui-2` に上げ本書へ差分を追記。
-- `-1` の「ZIP＋ルート `jisui.json`」「`pdf.mode` 3種」「`#page=N` 物理ページ」は後方互換に保つ。
+- `-1` の「ZIP＋先頭mimetype＋ルート `theta-book.json`」「`pdf.mode` 3種」「`#page=N` 物理ページ」は後方互換に保つ。
