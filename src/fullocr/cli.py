@@ -66,6 +66,7 @@ def presets_cmd():
 def run(
     target: Path = typer.Argument(..., help="PDF ファイル、または --folder 指定時はフォルダ"),
     folder: bool = typer.Option(False, "--folder", help="フォルダ内の PDF を一括処理"),
+    recursive: bool = typer.Option(False, "--recursive", "-r", help="サブフォルダも辿る（--folder時）"),
     config: Path | None = typer.Option(None, "--config", "-c", help="設定 JSON"),
     no_engines: bool = typer.Option(
         False, "--no-engines", help="NDL/Marker を起動せず既存の作業JSONから再構築"
@@ -83,8 +84,8 @@ def run(
             console.print(f"  {name}: {state}")
 
         results = process_folder(
-            target, cfg, skip_existing=not no_skip, progress=_progress,
-            run_engines=not no_engines,
+            target, cfg, recursive=recursive, skip_existing=not no_skip,
+            progress=_progress, run_engines=not no_engines,
         )
         for name, state in results.items():
             table.add_row(name, state)
@@ -101,6 +102,7 @@ def batch(
     folder: Path = typer.Argument(..., help="自炊PDFの入ったフォルダ"),
     config: Path | None = typer.Option(None, "--config", "-c", help="設定 JSON"),
     log: Path | None = typer.Option(None, "--log", help="詳細ログの出力先（既定 out/batch.log）"),
+    recursive: bool = typer.Option(False, "--recursive", "-r", help="サブフォルダも辿る"),
     no_engines: bool = typer.Option(
         False, "--no-engines", help="NDL/構造エンジンを起動せず既存の作業JSONから再構築"
     ),
@@ -116,7 +118,7 @@ def batch(
     cfg = _load_cfg(config, preset)
     with console.status(f"一括変換中: {folder}（詳細はログファイルへ）"):
         rep = run_batch(
-            folder, cfg, log_path=log, skip_existing=not no_skip,
+            folder, cfg, log_path=log, recursive=recursive, skip_existing=not no_skip,
             run_engines=not no_engines, retries=retries,
         )
     console.print(

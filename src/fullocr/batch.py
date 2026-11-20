@@ -92,6 +92,7 @@ def build_ir_for_pdf(
     cfg: PipelineConfig,
     *,
     run_engines: bool = True,
+    book_name: str | None = None,
     on_step=None,
     on_output=None,
 ) -> Document:
@@ -108,9 +109,11 @@ def build_ir_for_pdf(
     """
     step = on_step or _noop_step
     pdf_path = Path(pdf_path)
-    stem = safe_book_name(pdf_path.stem)   # フォルダ名は安全化（末尾空白等）
+    # フォルダ名: サブフォルダ階層での同名衝突を避けるため、呼び出し側が一意名を渡せる。
+    # 省略時は従来どおりファイル名(安全化)。表示用の書名・書誌検索は元のファイル名を使う。
+    folder_name = book_name or safe_book_name(pdf_path.stem)
     title = pdf_path.stem.strip()          # 表示用の書名は元のまま
-    work = cfg.work_dir / stem
+    work = cfg.work_dir / folder_name
     ndl_out = work / "ndl"
     engine_out = work / cfg.engine
     pages_out = work / "pages"
@@ -153,7 +156,7 @@ def build_ir_for_pdf(
         step(80, "書誌メタ（ISBN・出版社）を取得中…")
         from . import biblio as biblio_mod
 
-        bm = biblio_mod.lookup(stem)
+        bm = biblio_mod.lookup(title)
         if bm is not None:
             biblio_mod.apply_to_doc(doc, bm)
 
@@ -179,19 +182,22 @@ def process_pdf(
     cfg: PipelineConfig,
     *,
     run_engines: bool = True,
+    book_name: str | None = None,
     on_step=None,
     on_output=None,
 ) -> Path:
     """1 PDF を Obsidian 用 Markdown まで変換。出力フォルダを返す。
 
     on_step(percent, label) は段階の進捗、on_output(line) はエンジン(NDL/Docling)の
-    生の出力を1行ずつ受け取る（GUI のライブコンソール用）。
+    生の出力を1行ずつ受け取る（GUI のライブコンソール用）。book_name を渡すと work/out
+    のフォルダ名に使う（フォルダ一括時の同名衝突回避）。省略時はファイル名から決める。
     """
     step = on_step or _noop_step
     pdf_path = Path(pdf_path)
-    book = safe_book_name(pdf_path.stem)   # build_ir_for_pdf と同じ規則でフォルダ名を決める
+    book = book_name or safe_book_name(pdf_path.stem)   # build_ir_for_pdf と同じ規則
     doc = build_ir_for_pdf(
-        pdf_path, cfg, run_engines=run_engines, on_step=on_step, on_output=on_output
+        pdf_path, cfg, run_engines=run_engines, book_name=book,
+        on_step=on_step, on_output=on_output,
     )
 
     # 透明テキストPDFの名前を先に控える（見出し→PDFページリンクの張り先になる）。
@@ -425,11 +431,42 @@ def render_from_ir(ir_path: str | Path, cfg: PipelineConfig, out_name: str | Non
     return out_book
 
 
+def _unique_book_names(pdfs: list[Path], root: Path) -> dict[Path, str]:
+    """各 PDF に、work/out の衝突しないフォルダ名を割り当てる。
+
+    サブフォルダ構成（8Books 等）では別フォルダに同名の本があり、ファイル名だけでは
+    out/<名> が衝突して上書きされる。単独なら従来どおり短いファイル名、重複する時だけ
+    相対親フォルダを前置して一意化し、それでも残る衝突は連番で解消する。
+    """
+    from collections import Counter
+
+    base = {p: safe_book_name(p.stem) for p in pdfs}
+    counts = Counter(base.values())
+    names: dict[Path, str] = {}
+    used: set[str] = set()
+    for p in pdfs:
+        name = base[p]
+        if counts[name] > 1:
+            try:
+                parts = list(p.relative_to(root).with_suffix("").parts)
+            except ValueError:
+                parts = [p.stem]
+            name = safe_book_name("_".join(parts))
+        final, i = name, 2
+        while final in used:
+            final = f"{name}_{i}"
+            i += 1
+        used.add(final)
+        names[p] = final
+    return names
+
+
 def process_folder(
     folder: str | Path,
     cfg: PipelineConfig,
     *,
     pattern: str = "*.pdf",
+    recursive: bool = False,
     skip_existing: bool = True,
     retries: int = 1,
     progress=None,
@@ -437,22 +474,28 @@ def process_folder(
 ) -> dict[str, str]:
     """フォルダ内の PDF を一括処理。結果マップ {pdf名: 状態} を返す。
 
+    recursive=True でサブフォルダも辿る（work/out のフォルダ名は衝突しないよう一意化）。
     run_engines=False にすると、NDL/構造エンジンを起動せず既存の作業JSONから下流
     （merge・目次検出・LLM・レンダリング）だけ再実行する（PDCA の高速反復用）。
     その場合は skip_existing=False を併用しないと既存出力でスキップされる点に注意。
     """
     folder = Path(folder)
-    pdfs = sorted(folder.glob(pattern))
+    pdfs = sorted(folder.rglob(pattern) if recursive else folder.glob(pattern))
+    names = _unique_book_names(pdfs, folder)
     results: dict[str, str] = {}
     for pdf in pdfs:
-        out_book = cfg.out_dir / pdf.stem
+        book = names[pdf]
+        # 結果キー: 再帰時は相対パスの方が分かりやすい（別フォルダの同名本を区別）。
+        key = str(pdf.relative_to(folder)) if recursive else pdf.name
+        out_book = cfg.out_dir / book
         if skip_existing and (out_book / "00_index.md").exists():
-            results[pdf.name] = "skipped"
+            results[key] = "skipped"
             if progress:
-                progress(pdf.name, "skipped")
+                progress(key, "skipped")
             continue
-        state = _process_with_retry(pdf, cfg, retries, progress, run_engines)
-        results[pdf.name] = state
+        state = _process_with_retry(pdf, cfg, retries, progress, run_engines,
+                                    book_name=book, key=key)
+        results[key] = state
     return results
 
 
@@ -461,6 +504,7 @@ def run_batch(
     cfg: PipelineConfig,
     *,
     log_path: str | Path | None = None,
+    recursive: bool = False,
     skip_existing: bool = True,
     run_engines: bool = True,
     retries: int = 1,
@@ -490,8 +534,8 @@ def run_batch(
             lf.flush()
 
         results = process_folder(
-            folder, cfg, skip_existing=skip_existing, retries=retries,
-            progress=_progress, run_engines=run_engines,
+            folder, cfg, recursive=recursive, skip_existing=skip_existing,
+            retries=retries, progress=_progress, run_engines=run_engines,
         )
         elapsed = time.time() - t0
         done = sorted(n for n, s in results.items() if s == "done")
@@ -523,20 +567,22 @@ def run_batch(
 
 
 def _process_with_retry(pdf: Path, cfg: PipelineConfig, retries: int, progress,
-                        run_engines: bool = True) -> str:
+                        run_engines: bool = True, *, book_name: str | None = None,
+                        key: str | None = None) -> str:
+    label = key or pdf.name
     last_err = ""
     for attempt in range(retries + 1):
         try:
             if progress:
-                progress(pdf.name, f"processing (try {attempt + 1})")
-            process_pdf(pdf, cfg, run_engines=run_engines)
+                progress(label, f"processing (try {attempt + 1})")
+            process_pdf(pdf, cfg, run_engines=run_engines, book_name=book_name)
             if progress:
-                progress(pdf.name, "done")
+                progress(label, "done")
             return "done"
         except Exception as e:  # noqa: BLE001 - バッチは1冊失敗で止めない
             last_err = str(e)
             if progress:
-                progress(pdf.name, f"error: {e}")
+                progress(label, f"error: {e}")
             time.sleep(min(8, 2 ** attempt))
     return f"failed: {last_err}"
 

@@ -25,7 +25,7 @@ def test_run_batch_summary_and_report(tmp_path, monkeypatch):
     cfg.out_dir = tmp_path / "out"
     cfg.work_dir = tmp_path / "work"
 
-    def fake_process_pdf(pdf, cfg, run_engines=True):
+    def fake_process_pdf(pdf, cfg, run_engines=True, book_name=None, **kw):
         if pdf.stem.startswith("ng"):
             raise RuntimeError("壊れたPDFです")
         return cfg.out_dir / pdf.stem
