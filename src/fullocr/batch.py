@@ -461,6 +461,25 @@ def _unique_book_names(pdfs: list[Path], root: Path) -> dict[Path, str]:
     return names
 
 
+def _already_done(pdf: Path, out_book: Path, cfg: PipelineConfig) -> bool:
+    """既に変換済みか（スキップ判定）。bookhatch 運用では原本の隣の X.jisui でも再開できる。
+
+    out/<book>/00_index.md があれば済み。加えて jisui_beside_source のときは、原本PDFの
+    隣に FullOCR が書いた <同名>.jisui があれば済みとみなす（out/ を消しても原本側から再開）。
+    """
+    if (out_book / "00_index.md").exists():
+        return True
+    if cfg.jisui_beside_source:
+        side = pdf.with_suffix(".jisui")
+        if side.exists():
+            from .pack import _is_ours
+            try:
+                return _is_ours(side)
+            except Exception:  # noqa: BLE001
+                return False
+    return False
+
+
 def process_folder(
     folder: str | Path,
     cfg: PipelineConfig,
@@ -488,7 +507,7 @@ def process_folder(
         # 結果キー: 再帰時は相対パスの方が分かりやすい（別フォルダの同名本を区別）。
         key = str(pdf.relative_to(folder)) if recursive else pdf.name
         out_book = cfg.out_dir / book
-        if skip_existing and (out_book / "00_index.md").exists():
+        if skip_existing and _already_done(pdf, out_book, cfg):
             results[key] = "skipped"
             if progress:
                 progress(key, "skipped")

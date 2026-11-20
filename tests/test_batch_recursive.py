@@ -87,3 +87,44 @@ def test_process_folder_non_recursive_ignores_subfolders(tmp_path, monkeypatch):
                         lambda pdf, cfg, **k: seen.append(k.get("book_name")) or (cfg.out_dir / "x"))
     batch.process_folder(books, cfg, recursive=False, retries=0, skip_existing=False)
     assert seen == ["top"]        # サブフォルダは辿らない
+
+
+def _write_jisui(path, generator="fullocr 0.14.0"):
+    import json
+    import zipfile
+    with zipfile.ZipFile(path, "w") as z:
+        z.writestr("mimetype", "application/x-jisui", compress_type=zipfile.ZIP_STORED)
+        z.writestr("theta-book.json", json.dumps({"format": "jisui-1", "generator": generator}))
+
+
+def test_resume_skips_when_our_jisui_beside_source(tmp_path, monkeypatch):
+    books = tmp_path / "books"
+    _touch(books / "本.pdf")
+    _write_jisui(books / "本.jisui")           # FullOCR が書いた既存 .jisui
+    cfg = PipelineConfig()
+    cfg.out_dir = tmp_path / "out"
+    cfg.work_dir = tmp_path / "work"
+    cfg.jisui_beside_source = True
+
+    def boom(*a, **k):
+        raise AssertionError("既に .jisui があるなら process_pdf は呼ばれない")
+
+    monkeypatch.setattr(batch, "process_pdf", boom)
+    results = batch.process_folder(books, cfg, recursive=True)
+    assert results["本.pdf"] == "skipped"
+
+
+def test_resume_does_not_skip_foreign_jisui(tmp_path, monkeypatch):
+    books = tmp_path / "books"
+    _touch(books / "本.pdf")
+    _write_jisui(books / "本.jisui", generator="someone-else")   # 他人の .jisui
+    cfg = PipelineConfig()
+    cfg.out_dir = tmp_path / "out"
+    cfg.work_dir = tmp_path / "work"
+    cfg.jisui_beside_source = True
+
+    called: list[str] = []
+    monkeypatch.setattr(batch, "process_pdf",
+                        lambda pdf, cfg, **k: called.append(k.get("book_name")) or (cfg.out_dir / "x"))
+    batch.process_folder(books, cfg, recursive=True)
+    assert called == ["本"]        # 他人の .jisui ではスキップしない
