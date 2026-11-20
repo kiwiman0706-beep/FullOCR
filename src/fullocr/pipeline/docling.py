@@ -52,7 +52,8 @@ _LABEL_MAP: dict[str, BlockType] = {
     "section_header": BlockType.HEADING,
     "text": BlockType.BODY,
     "paragraph": BlockType.BODY,
-    "formula": BlockType.BODY,
+    # 数式。enrich_formula 時は text が LaTeX。merge で LaTeX でなければ BODY に戻す。
+    "formula": BlockType.FORMULA,
     "code": BlockType.BODY,
     "caption": BlockType.CAPTION,
     "picture": BlockType.FIGURE,
@@ -276,6 +277,23 @@ def load_docling_dir(outdir: str | Path, json_glob: str = "**/*.json") -> list[L
     return []
 
 
+def _cli_accuracy_flags(cmd: str, cfg: DoclingConfig) -> str:
+    """精度ノブを docling CLI のフラグに翻訳する（command に明示済みのものは足さない）。
+
+    以前は凍結時の in-process 経路にしか効かず、CLI 経路では table_mode 等を変えても
+    出力が1バイトも変わらなかった（実本 A/B で判明）。images_scale は CLI に対応フラグが
+    無い（ページ画像は FullOCR 側で page_render_dpi で描くので CLI 経路では影響しない）。
+    """
+    flags = ""
+    if "--table-mode" not in cmd and cfg.table_mode:
+        flags += f" --table-mode {cfg.table_mode}"
+    if not cfg.do_table_structure and "--no-tables" not in cmd and "--tables" not in cmd:
+        flags += " --no-tables"
+    if cfg.enrich_formula and "--enrich-formula" not in cmd:
+        flags += " --enrich-formula"
+    return flags
+
+
 def run_docling(input_pdf: str | Path, outdir: str | Path, cfg: DoclingConfig, on_output=None) -> Path:
     """Docling を実行して JSON を outdir に生成する。
 
@@ -295,6 +313,7 @@ def run_docling(input_pdf: str | Path, outdir: str | Path, cfg: DoclingConfig, o
         run_docling_inprocess(input_pdf, outdir, on_output, cfg)
         return outdir
     cmd = cfg.command.format(input=quote_path(str(input_pdf)), outdir=quote_path(str(outdir)))
+    cmd += _cli_accuracy_flags(cmd, cfg)
     returncode, tail = run_streaming(cmd, on_output)
     if returncode != 0:
         raise RuntimeError(
@@ -351,6 +370,10 @@ def _apply_docling_accuracy(opts, cfg: DoclingConfig | None) -> None:
         mode = TableFormerMode.ACCURATE if str(cfg.table_mode).lower() == "accurate" else TableFormerMode.FAST
         opts.table_structure_options.mode = mode
     except Exception:  # noqa: BLE001 - 版差異で属性が無くても無視
+        pass
+    try:
+        opts.do_formula_enrichment = cfg.enrich_formula
+    except Exception:  # noqa: BLE001
         pass
 
 

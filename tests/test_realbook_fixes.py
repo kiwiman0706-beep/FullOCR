@@ -179,3 +179,174 @@ def test_chapter_title_page_becomes_heading():
     assert [(b.type, b.text) for b in page.blocks] == [
         (BlockType.HEADING, "はじめに… 心電図を3ステップで 読んでみよう"),
     ]
+
+
+# --- ページアンカー: 印刷ページ番号（print=）の検出（実本で 178 中 0 → 139 ページ） ---
+
+def test_low_confidence_margin_nombre_is_kept_as_footer():
+    # NDL はノンブルの信頼度を 0.0〜0.3 と極端に低く出す → 足切りで消えていた。
+    from fullocr.pipeline.merge import merge_page
+    from fullocr.pipeline.ndl import NDLLine, NDLPage
+
+    cfg = PipelineConfig()
+    ndl = NDLPage(width=1000, height=1600, lines=[
+        NDLLine(text="本文の0行目です。これは十分な長さの本文の行です。", bbox=BBox(x0=100, y0=300, x1=900, y1=330), confidence=0.95),
+        NDLLine(text="本文の1行目です。これは十分な長さの本文の行です。", bbox=BBox(x0=100, y0=340, x1=900, y1=370), confidence=0.95),
+        NDLLine(text="本文の2行目です。これは十分な長さの本文の行です。", bbox=BBox(x0=100, y0=380, x1=900, y1=410), confidence=0.95),
+        NDLLine(text="本文の3行目です。これは十分な長さの本文の行です。", bbox=BBox(x0=100, y0=420, x1=900, y1=450), confidence=0.95),
+        NDLLine(text="本文の4行目です。これは十分な長さの本文の行です。", bbox=BBox(x0=100, y0=460, x1=900, y1=490), confidence=0.95),
+        NDLLine(text="12", bbox=BBox(x0=480, y0=1544, x1=520, y1=1561), confidence=0.0),
+    ])
+    marker = LayoutPage(width=1000, height=1600, blocks=[
+        LayoutBlock(bbox=BBox(x0=90, y0=290, x1=910, y1=500), type=BlockType.BODY, reading_order=1),
+    ])
+    page = merge_page(7, ndl, marker, cfg)
+    footers = [b for b in page.blocks if b.type is BlockType.PAGE_FOOTER]
+    assert [b.text for b in footers] == ["12"]
+
+
+def test_engine_footer_text_kept_when_ndl_missed_it():
+    # NDL がノンブルを読まなかったページでも、Docling の page_footer テキストで残す。
+    from fullocr.pipeline.merge import merge_page
+    from fullocr.pipeline.ndl import NDLLine, NDLPage
+
+    cfg = PipelineConfig()
+    ndl = NDLPage(width=1000, height=1600, lines=[
+        NDLLine(text="本文の0行目です。これは十分な長さの本文の行です。", bbox=BBox(x0=100, y0=300, x1=900, y1=330), confidence=0.95),
+        NDLLine(text="本文の1行目です。これは十分な長さの本文の行です。", bbox=BBox(x0=100, y0=340, x1=900, y1=370), confidence=0.95),
+        NDLLine(text="本文の2行目です。これは十分な長さの本文の行です。", bbox=BBox(x0=100, y0=380, x1=900, y1=410), confidence=0.95),
+        NDLLine(text="本文の3行目です。これは十分な長さの本文の行です。", bbox=BBox(x0=100, y0=420, x1=900, y1=450), confidence=0.95),
+        NDLLine(text="本文の4行目です。これは十分な長さの本文の行です。", bbox=BBox(x0=100, y0=460, x1=900, y1=490), confidence=0.95),
+    ])
+    marker = LayoutPage(width=1000, height=1600, blocks=[
+        LayoutBlock(bbox=BBox(x0=90, y0=290, x1=910, y1=500), type=BlockType.BODY, reading_order=1),
+        LayoutBlock(bbox=BBox(x0=470, y0=1540, x1=530, y1=1565), type=BlockType.PAGE_FOOTER,
+                    reading_order=2, text="5 5"),
+        LayoutBlock(bbox=BBox(x0=0, y0=0, x1=10, y1=10), type=BlockType.BODY, reading_order=3,
+                    text="装飾"),
+    ])
+    page = merge_page(7, ndl, marker, cfg)
+    assert [(b.type, b.text) for b in page.blocks if b.type is not BlockType.BODY] == [
+        (BlockType.PAGE_FOOTER, "5 5")]
+    assert all(b.text != "装飾" for b in page.blocks)  # 空の本文ブロックは従来どおり捨てる
+
+
+def test_detect_nombre_variants():
+    from fullocr.render.markdown import _detect_nombre
+
+    def page(*texts, kind=BlockType.PAGE_FOOTER):
+        return Page(number=10, width=100, height=100, blocks=[
+            Block(id=f"b{i}", bbox=BBox(x0=0, y0=90, x1=10, y1=99), type=kind, text=t,
+                  reading_order=i) for i, t in enumerate(texts)])
+
+    assert _detect_nombre(page("5 5")) == "5"            # Docling の重複
+    assert _detect_nombre(page("oo8")) == "8"            # 0 を o と誤読
+    assert _detect_nombre(page("O09")) == "9"
+    assert _detect_nombre(page("Ⅵ", kind=BlockType.PAGE_HEADER)) == "vi"   # 全角ローマ数字
+    assert _detect_nombre(page("Ⅵ Ⅵ", kind=BlockType.PAGE_HEADER)) == "vi"
+    # 柱「…乱雑さ I」の I はノンブルではない。同じページの算用数字を優先。
+    assert _detect_nombre(page("第0章 エネルギーと乱雑さ I", kind=BlockType.PAGE_HEADER)) is None
+    assert _detect_nombre(Page(number=3, width=1, height=1, blocks=[
+        Block(id="h", bbox=BBox(x0=0, y0=0, x1=1, y1=1), type=BlockType.PAGE_HEADER,
+              text="第0章 エネルギーと乱雑さ I", reading_order=0),
+        Block(id="h2", bbox=BBox(x0=0, y0=0, x1=1, y1=1), type=BlockType.PAGE_HEADER,
+              text="2", reading_order=1)])) == "2"
+    assert _detect_nombre(page("Moore")) is None        # 英単語は拾わない
+
+
+# --- プリセット ---
+
+def test_presets_apply_and_default_anchors_on():
+    from fullocr.presets import PRESETS, apply_preset
+
+    base = PipelineConfig()
+    assert base.render.page_anchors is True  # BookHatch 連携のため既定 ON
+    ob = apply_preset(base, "obsidian")
+    assert ob.render.pdf_page_links and ob.render.hide_toc_pages and ob.render.page_anchors
+    assert base.render.pdf_page_links is False  # 元の cfg は変更しない
+    # 設定ファイルで変えた無関係な項目はプリセットで消えない
+    base.ndl.min_confidence = 0.7
+    assert apply_preset(base, "bookhatch").ndl.min_confidence == 0.7
+    assert set(PRESETS) >= {"bookhatch", "obsidian"}
+    import pytest
+    with pytest.raises(KeyError):
+        apply_preset(base, "nope")
+
+
+def test_docling_cli_gets_accuracy_flags():
+    # 以前は CLI 経路で table_mode 等が無視され、A/B しても出力が同一だった。
+    from fullocr.config import DoclingConfig
+    from fullocr.pipeline.docling import _cli_accuracy_flags
+
+    base = "docling convert a.pdf --to json --output o --no-ocr"
+    assert _cli_accuracy_flags(base, DoclingConfig()) == " --table-mode fast"
+    cfg = DoclingConfig(table_mode="accurate", enrich_formula=True)
+    assert _cli_accuracy_flags(base, cfg) == " --table-mode accurate --enrich-formula"
+    assert _cli_accuracy_flags(base, DoclingConfig(do_table_structure=False)).endswith("--no-tables")
+    # command に明示済みならそちらを尊重して重ねない
+    assert _cli_accuracy_flags(base + " --table-mode accurate", DoclingConfig()) == ""
+
+
+def test_latex_formula_kept_and_ocr_formula_falls_back_to_body():
+    from fullocr.pipeline.merge import merge_page
+    from fullocr.render.markdown import _block_to_md
+
+    cfg = PipelineConfig()
+    lines = [NDLLine(text=f"本文の{i}行目です。これは十分な長さの本文の行です。",
+                     bbox=BBox(x0=100, y0=300 + i * 40, x1=900, y1=330 + i * 40), confidence=0.95)
+             for i in range(5)]
+    lines.append(NDLLine(text="2H2+02~→ 2H20", bbox=BBox(x0=300, y0=600, x1=700, y1=630),
+                         confidence=0.9))
+    lines.append(NDLLine(text="σ め ④", bbox=BBox(x0=300, y0=700, x1=700, y1=730), confidence=0.9))
+    ndl = NDLPage(width=1000, height=1600, lines=lines)
+    marker = LayoutPage(width=1000, height=1600, blocks=[
+        LayoutBlock(bbox=BBox(x0=90, y0=290, x1=910, y1=500), type=BlockType.BODY, reading_order=1),
+        LayoutBlock(bbox=BBox(x0=290, y0=590, x1=710, y1=640), type=BlockType.FORMULA,
+                    reading_order=2, text=r"2 \, H _ { 2 } + O _ { 2 } \longrightarrow 2 \, H _ { 2 } O"),
+        LayoutBlock(bbox=BBox(x0=290, y0=690, x1=710, y1=740), type=BlockType.FORMULA,
+                    reading_order=3, text="σ め ④"),
+    ])
+    page = merge_page(7, ndl, marker, cfg)
+    f = [b for b in page.blocks if b.type is BlockType.FORMULA]
+    assert len(f) == 1 and f[0].text.startswith(r"2 \, H")
+    assert _block_to_md(f[0], RenderConfig()) == "$$\n" + f[0].text + "\n$$"
+    assert any(b.type is BlockType.BODY and "σ め ④" in b.text for b in page.blocks)
+
+
+def test_figure_keeps_inner_text_and_tiny_icons_are_dropped():
+    # 実本「救急当直」: 章題バナー（02 発熱 / 帰すと死んじゃう…）が丸ごと図になり章題が消えていた。
+    # ✕印・チェック枠など文字の無い小アイコンも図として切り出されていた。
+    from fullocr.pipeline.merge import merge_page
+    from fullocr.render.markdown import _block_to_md
+
+    cfg = PipelineConfig()
+    lines = [NDLLine(text=f"本文の{i}行目です。これは十分な長さの本文の行です。",
+                     bbox=BBox(x0=100, y0=900 + i * 40, x1=900, y1=930 + i * 40), confidence=0.95)
+             for i in range(5)]
+    lines += [NDLLine(text="帰すと死んじゃう発熱を見逃すな!", bbox=BBox(x0=300, y0=100, x1=800, y1=140),
+                      confidence=0.9),
+              NDLLine(text="発熱", bbox=BBox(x0=300, y0=160, x1=420, y1=220), confidence=0.9)]
+    ndl = NDLPage(width=1000, height=1600, lines=lines)
+    marker = LayoutPage(width=1000, height=1600, blocks=[
+        LayoutBlock(bbox=BBox(x0=50, y0=50, x1=950, y1=400), type=BlockType.FIGURE, reading_order=1),
+        LayoutBlock(bbox=BBox(x0=90, y0=890, x1=910, y1=1100), type=BlockType.BODY, reading_order=2),
+        LayoutBlock(bbox=BBox(x0=100, y0=500, x1=140, y1=540), type=BlockType.FIGURE, reading_order=3),
+    ])
+    page = merge_page(20, ndl, marker, cfg)
+    figs = [b for b in page.blocks if b.type is BlockType.FIGURE]
+    assert len(figs) == 1  # 40x40 の✕アイコン(面積0.1%)は捨てる
+    assert "発熱" in figs[0].ocr_text and "見逃すな" in figs[0].ocr_text
+    figs[0].image_path = "attachments/p20.png"
+    md = _block_to_md(figs[0], RenderConfig())
+    assert md.endswith("> [!info]- 図中のテキスト\n> 帰すと死んじゃう発熱を見逃すな!\n> 発熱")
+
+
+def test_figure_text_skips_number_badges():
+    from fullocr.pipeline.merge import _figure_text
+
+    ln = lambda t: NDLLine(text=t, bbox=BBox(x0=0, y0=0, x1=10, y1=10), confidence=0.9)
+    assert _figure_text([ln("5")]) == ""
+    assert _figure_text([ln("1.")]) == ""
+    assert _figure_text([ln("30"), ln("→")]) == ""
+    assert _figure_text([ln("発熱")]) == "発熱"
+    assert _figure_text([ln("aVR")]) == "aVR"

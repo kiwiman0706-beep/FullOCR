@@ -49,6 +49,23 @@ def _load_doc_meta(cfg: PipelineConfig, book: str):
     return doc.meta, _page_offset(doc)
 
 
+def _declared_anchor_scheme(index_md: Path) -> str | None:
+    """00_index.md の front-matter にある page_anchors の値（無ければ None）。"""
+    try:
+        text = index_md.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    if not text.startswith("---"):
+        return None
+    for line in text.splitlines()[1:]:
+        if line.strip() == "---":
+            break
+        key, _, val = line.partition(":")
+        if key.strip() == "page_anchors" and val.strip():
+            return val.strip()
+    return None
+
+
 def _find_pdf(out_book: Path, pdf_name: str | None) -> Path | None:
     if pdf_name and (out_book / pdf_name).exists():
         return out_book / pdf_name
@@ -85,10 +102,15 @@ def pack_book(cfg: PipelineConfig, book: str, *, pdf_mode: str = "embed") -> dic
         "author": meta.author if meta else None,
         "entry": "00_index.md",
         "pdf": pdf_entry,
-        "page_anchors": "fullocr-1",
         "generator": f"fullocr {__version__}",
         "created": time.strftime("%Y-%m-%d"),
     }
+    # MD 側に実際にアンカーを埋めた時だけ宣言する（00_index.md の front-matter が正）。
+    # 以前は常に fullocr-1 を宣言しており、page_anchors=False で変換した本でも
+    # ビューワ（jisui.js は manifest で front-matter を補完する）が対応本と誤認していた。
+    anchors = _declared_anchor_scheme(out_book / "00_index.md")
+    if anchors:
+        manifest["page_anchors"] = anchors
     if page_offset is not None:
         manifest["page_offset"] = page_offset
     if (out_book / "_digest.md").exists():

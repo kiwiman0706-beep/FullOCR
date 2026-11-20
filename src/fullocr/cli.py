@@ -26,19 +26,40 @@ app = typer.Typer(add_completion=False, help="自炊PDF → 高精度Markdown (N
 console = Console()
 
 
-def _load_cfg(config: Path | None) -> PipelineConfig:
-    if config and config.exists():
-        return PipelineConfig.load(config)
-    return PipelineConfig()
+def _load_cfg(config: Path | None, preset: str | None = None) -> PipelineConfig:
+    cfg = PipelineConfig.load(config) if config and config.exists() else PipelineConfig()
+    if preset:
+        from .presets import apply_preset
+
+        try:
+            cfg = apply_preset(cfg, preset)
+        except KeyError as e:
+            raise typer.BadParameter(str(e.args[0])) from e
+    return cfg
+
+
+_PRESET_HELP = "用途別プリセットを設定の上から重ねる（bookhatch / obsidian。`fullocr presets` で一覧）"
 
 
 @app.command("init-config")
-def init_config(path: Path = typer.Argument(Path("fullocr.config.json"))):
-    """設定ファイルの雛形を書き出す。"""
-    cfg = PipelineConfig()
+def init_config(
+    path: Path = typer.Argument(Path("fullocr.config.json")),
+    preset: str | None = typer.Option(None, "--preset", "-p", help=_PRESET_HELP),
+):
+    """設定ファイルの雛形を書き出す（--preset で用途別の推奨値入り）。"""
+    cfg = _load_cfg(None, preset)
     cfg.save(path)
     console.print(f"[green]設定雛形を書き出しました:[/] {path}")
     console.print("NDL/Marker の command 行を、実際のインストール状況に合わせて調整してください。")
+
+
+@app.command("presets")
+def presets_cmd():
+    """用途別プリセットの一覧。"""
+    from .presets import PRESETS
+
+    for name, (desc, _) in PRESETS.items():
+        console.print(f"[bold]{name}[/]  {desc}")
 
 
 @app.command("run")
@@ -50,9 +71,10 @@ def run(
         False, "--no-engines", help="NDL/Marker を起動せず既存の作業JSONから再構築"
     ),
     no_skip: bool = typer.Option(False, "--no-skip", help="既存出力をスキップしない"),
+    preset: str | None = typer.Option(None, "--preset", "-p", help=_PRESET_HELP),
 ):
     """PDF を Obsidian 用 Markdown に変換する。"""
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, preset)
 
     if folder:
         table = Table("PDF", "状態")
@@ -84,13 +106,14 @@ def batch(
     ),
     no_skip: bool = typer.Option(False, "--no-skip", help="既存出力をスキップしない"),
     retries: int = typer.Option(1, "--retries", help="1冊あたりの失敗リトライ回数"),
+    preset: str | None = typer.Option(None, "--preset", "-p", help=_PRESET_HELP),
 ):
     """フォルダを丸ごと「お任せ」変換する（Claudeに投げる想定）。
 
     1冊ごとの進捗は**ログファイル**へ流し、画面には最後の要約と失敗一覧だけ出す。
     失敗した本は out/batch_report.json に原因付きで残るので、そこだけ後追いすればよい。
     """
-    cfg = _load_cfg(config)
+    cfg = _load_cfg(config, preset)
     with console.status(f"一括変換中: {folder}（詳細はログファイルへ）"):
         rep = run_batch(
             folder, cfg, log_path=log, skip_existing=not no_skip,

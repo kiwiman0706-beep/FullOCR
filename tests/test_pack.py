@@ -10,13 +10,14 @@ from fullocr.config import PipelineConfig
 from fullocr.ir import BBox, Block, BlockType, DocMeta, Document, Page
 
 
-def _make_book(tmp_path, book="テスト本", with_pdf=True, with_digest=False):
+def _make_book(tmp_path, book="テスト本", with_pdf=True, with_digest=False, anchors=True):
     cfg = PipelineConfig()
     cfg.out_dir = tmp_path / "out"
     cfg.work_dir = tmp_path / "work"
     out_book = cfg.out_dir / book
     (out_book / "attachments").mkdir(parents=True)
-    (out_book / "00_index.md").write_text("# 目次\n", encoding="utf-8")
+    fm = "---\ntitle: テスト本\npage_anchors: fullocr-1\n---\n" if anchors else ""
+    (out_book / "00_index.md").write_text(fm + "# 目次\n", encoding="utf-8")
     (out_book / "本文.md").write_text("本文です。", encoding="utf-8")
     (out_book / "attachments" / "p1.png").write_bytes(b"\x89PNG\r\n")
     if with_digest:
@@ -108,3 +109,12 @@ def test_pack_missing_book_raises(tmp_path):
         assert False, "should raise"
     except FileNotFoundError:
         pass
+
+
+def test_pack_omits_page_anchors_when_md_has_none(tmp_path):
+    # page_anchors=False で変換した本: マニフェストで対応本と偽らない（page_offset は出す）。
+    cfg, book, _ = _make_book(tmp_path, anchors=False)
+    r = pack.pack_book(cfg, book, pdf_mode="embed")
+    man = json.loads(zipfile.ZipFile(r["jisui"]).read("theta-book.json"))
+    assert "page_anchors" not in man
+    assert man["page_offset"] == 8

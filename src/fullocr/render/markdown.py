@@ -26,6 +26,12 @@ PAGE_ANCHOR_SCHEME = "fullocr-1"
 _NOMBRE_ARABIC = re.compile(r"^\d{1,4}$")
 _NOMBRE_ROMAN = re.compile(r"^[ivxlcdm]{1,6}$", re.IGNORECASE)
 _ZEN2HAN = str.maketrans("０１２３４５６７８９", "0123456789")
+_NOMBRE_OCR0 = re.compile(r"^[0-9Oo]{3,4}$")
+_O2ZERO = str.maketrans("Oo", "00")
+_ROMAN2ASCII = {ord(k): v for k, v in zip(
+    "ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫⅰⅱⅲⅳⅴⅵⅶⅷⅸⅹ",
+    ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII",
+     "i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"])}
 # 箇条書きの行頭記号（原文由来）。
 _BULLET_HEAD = re.compile(r"^[●○◆◇■□▪▫・•◉▶►▸◎]\s*")
 
@@ -34,19 +40,25 @@ def _detect_nombre(page: Page) -> str | None:
     """ページの柱/ノンブル（PAGE_HEADER/PAGE_FOOTER）から印刷ページ番号を推定。
 
     フッタを優先し、無ければヘッダ。柱に章タイトル＋番号が同居するので、空白等で
-    分割した「数字だけ」「ローマ数字だけ」のトークンを拾う。見つからなければ None。
+    分割した「数字だけ」のトークンを拾う。算用数字を全ブロックで先に探し、ローマ数字は
+    ブロック全体がローマ数字1語のときだけ採る（柱「…乱雑さ I」の I を拾わないため）。
+    OCR が 0 を O/o と読んだ「oo8」「O09」も 3〜4 文字の数字列として救う。
     本文から除外(drop_headers_footers)されていても IR には残っているので参照できる。
     """
-    for want in (BlockType.PAGE_FOOTER, BlockType.PAGE_HEADER):
-        for b in page.blocks:
-            if b.type is not want:
-                continue
-            for tok in b.text.translate(_ZEN2HAN).split():
-                tok = tok.strip(".,)(-–—　")
-                if _NOMBRE_ARABIC.match(tok):
-                    return str(int(tok))  # 先頭0を落として正規化
-                if _NOMBRE_ROMAN.match(tok):
-                    return tok.lower()
+    blocks = [b for want in (BlockType.PAGE_FOOTER, BlockType.PAGE_HEADER)
+              for b in page.blocks if b.type is want]
+    for b in blocks:
+        for tok in b.text.translate(_ZEN2HAN).split():
+            tok = tok.strip(".,)(-–—　")
+            if _NOMBRE_OCR0.match(tok) and any(c.isdigit() for c in tok):
+                tok = tok.translate(_O2ZERO)
+            if _NOMBRE_ARABIC.match(tok):
+                return str(int(tok))  # 先頭0を落として正規化
+    for b in blocks:
+        toks = b.text.translate(_ROMAN2ASCII).split()
+        # Docling は同じ文字列を2回連ねることがある（「Ⅵ Ⅵ」）ので重複は1つとみなす。
+        if len(set(toks)) == 1 and _NOMBRE_ROMAN.match(toks[0]):
+            return toks[0].lower()
     return None
 
 
@@ -136,7 +148,13 @@ def _block_to_md(b: Block, cfg: RenderConfig) -> str | None:
             # 代替テキスト(LLM生成)があれば、画像の下に説明を添える。Obsidian の
             # wikilink 埋め込みは alt を表示・検索できないため、本文として出して
             # スマホでの全文検索に引っかかるようにする。
-            return f"{link}\n*{t}*" if t else link
+            out = f"{link}\n*{t}*" if t else link
+            if b.ocr_text.strip():
+                # 図の中の文字（章題バナー・吹き出し・ラベル）。見た目は画像が主なので
+                # 折りたたみ枠に入れ、検索には引っかかるようにする（表のテキストと同じ扱い）。
+                quoted = "\n".join(f"> {ln}" for ln in b.ocr_text.strip().splitlines())
+                out += f"\n\n> [!info]- 図中のテキスト\n{quoted}"
+            return out
         # 画像未切り出し時はプレースホルダ（ページ画像がまだ無いケース）
         return f"> [!note] 図領域 (p.{b.id})  bbox=({int(b.bbox.x0)},{int(b.bbox.y0)})-({int(b.bbox.x1)},{int(b.bbox.y1)})"
     if b.type is BlockType.CAPTION:
@@ -147,6 +165,8 @@ def _block_to_md(b: Block, cfg: RenderConfig) -> str | None:
         return f"- {t}" if t else None
     if b.type is BlockType.FOOTNOTE:
         return f"> {t}" if t else None
+    if b.type is BlockType.FORMULA:
+        return f"$$\n{t}\n$$" if t else None
     if b.type is BlockType.TABLE:
         # 表は画像で原形を保つ（構造が崩れると意味が変わるため）。切り出せていれば
         # 画像＋検索用キャプション（中のOCRテキスト）。無理なら Markdown 表/テキスト。

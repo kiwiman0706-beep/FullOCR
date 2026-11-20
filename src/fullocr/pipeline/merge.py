@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 
 from ..config import PipelineConfig
 from ..ir import BBox, Block, BlockType, DocMeta, Document, Orientation, Page
@@ -35,6 +36,30 @@ def _denorm_bbox(b: BBox, w: float, h: float) -> BBox:
 
 # ページ上下端のこの割合を、柱・ノンブル（頁番号）が置かれる領域とみなす。
 _HEADER_FOOTER_MARGIN = 0.08
+
+
+# 構造エンジンの数式テキストが LaTeX か（enrich_formula 無しだと OCR 文字列のまま）。
+_LATEX_LIKE = re.compile(r"\\[A-Za-z]+|[_^]\s*\{")
+
+# これより小さい（ページ面積比）テキスト無しの図は装飾アイコンとして捨てる。
+_MIN_FIGURE_AREA = 0.003
+
+def _figure_text(lines: list[NDLLine]) -> str:
+    """図の中の文字（1行ずつ）。手順番号バッジ「5」「1.」のような文字の無いものは捨てる
+    （実本「できるPowerAutomate」で図ごとに数字だけの枠が並んでいた）。"""
+    text = "\n".join(ln.text for ln in _order_lines(lines))
+    return text if len(re.sub(r"[\s\d\W_]", "", text)) >= 2 else ""
+
+
+_NOMBRE_LINE = re.compile(r"^\s*[0-9０-９]{1,4}\s*$")
+
+
+def _is_margin_nombre(line: NDLLine, page_h: float) -> bool:
+    """上下余白にある数字だけの短い行（ノンブル候補）か。"""
+    if page_h <= 0 or not _NOMBRE_LINE.match(line.text):
+        return False
+    return (line.bbox.y1 <= page_h * _HEADER_FOOTER_MARGIN
+            or line.bbox.y0 >= page_h * (1 - _HEADER_FOOTER_MARGIN))
 
 
 def _rescued_line_type(line: NDLLine, page_h: float) -> BlockType:
@@ -153,10 +178,16 @@ def merge_page(
     """1ページ分をマージして IR Page を作る。"""
     ndl = ndl or NDLPage()
     min_conf = cfg.ndl.min_confidence
-    ndl.lines = [ln for ln in ndl.lines if ln.confidence is None or ln.confidence >= min_conf]
     # 出力座標系は NDL 画像px。NDL サイズ不明なら Marker から借用。
     pw = ndl.width or (marker.width if marker else 0.0)
     ph = ndl.height or (marker.height if marker else 0.0)
+    # 低信頼行は捨てる。ただし上下余白の短い数字（ノンブル）は NDL の信頼度が極端に
+    # 低く出る（実本で 0.0〜0.3）ので残す。柱/ノンブル扱いで本文には出ず、印刷ページ
+    # 番号の検出（page_anchors の print=）にだけ使われる。
+    ndl.lines = [
+        ln for ln in ndl.lines
+        if ln.confidence is None or ln.confidence >= min_conf or _is_margin_nombre(ln, ph)
+    ]
     page = Page(number=number, width=pw, height=ph)
 
     threshold = cfg.assign_overlap_threshold
@@ -213,6 +244,23 @@ def merge_page(
     # --- Marker ブロック順に IR ブロックを生成 ---
     for i, mb in sorted(enumerate(marker.blocks), key=lambda kv: kv[1].reading_order):
         lines = assigned[i]
+        if mb.type is BlockType.FORMULA:
+            # LaTeX 化された数式だけ FORMULA として残す（NDL は数式・分数を崩すので
+            # 本文の NDL テキストより LaTeX を採る）。LaTeX でなければ通常の本文扱い。
+            if _LATEX_LIKE.search(mb.text):
+                bid = f"p{number}_b{mb.reading_order}"
+                page.blocks.append(Block(
+                    id=bid,
+                    bbox=_denorm_bbox(_norm_bbox(mb.bbox, marker.width, marker.height), pw, ph),
+                    type=BlockType.FORMULA,
+                    text=mb.text.strip(),
+                    reading_order=mb.reading_order,
+                    source="marker-latex",
+                ))
+                if lines:
+                    block_key[bid] = min(line_idx[id(ln)] for ln in lines)
+                continue
+            mb = replace(mb, type=BlockType.BODY)
         # NDL 座標系での bbox（Marker bbox を正規化→NDL px へ）
         bbox_ndl = _denorm_bbox(_norm_bbox(mb.bbox, marker.width, marker.height), pw, ph)
         # 左右に並んだ別々の見出し/キャプションを1ブロックにまとめられた場合は段ごとに分割。
@@ -240,7 +288,12 @@ def merge_page(
         if lines:
             block_key[f"p{number}_b{mb.reading_order}"] = min(line_idx[id(ln)] for ln in lines)
         if mb.type is BlockType.FIGURE:
-            # 図: テキストは持たず領域のみ（後段でページ画像から切り出し）
+            # 図: 領域のみ（後段でページ画像から切り出し）。テキストの無いごく小さな図は
+            # 装飾アイコン（✕印・チェック枠など）なので捨てる（実本「救急当直」で多発）。
+            if not lines and pw > 0 and ph > 0 and bbox_ndl.area < _MIN_FIGURE_AREA * pw * ph:
+                continue
+            # 図の中の文字（デザインされた章題バナー・吹き出し・図中ラベル）は以前は
+            # 捨てていた。章題ごと消えるので、図に持たせて検索用に出す。
             page.blocks.append(
                 Block(
                     id=f"p{number}_b{mb.reading_order}",
@@ -248,11 +301,26 @@ def merge_page(
                     type=BlockType.FIGURE,
                     reading_order=mb.reading_order,
                     source="marker",
+                    # 図中の文字は別々のラベルなので1行ずつ（本文のように連結しない）。
+                    ocr_text=_figure_text(lines),
                 )
             )
             continue
         if not lines:
-            # テキストが割り当たらなかった非図ブロックは捨てる（柱/装飾等）
+            # 柱/ノンブルは NDL が読まないことが多い（実本で 178 ページ中 1 ページしか
+            # ノンブルを読まなかった）。印刷ページ番号の検出用に、構造エンジン側の
+            # テキストで残す（本文には出ない）。それ以外の空ブロックは捨てる（装飾等）。
+            if mb.type in (BlockType.PAGE_HEADER, BlockType.PAGE_FOOTER) and mb.text.strip():
+                page.blocks.append(
+                    Block(
+                        id=f"p{number}_b{mb.reading_order}",
+                        bbox=bbox_ndl,
+                        type=mb.type,
+                        text=mb.text.strip(),
+                        reading_order=mb.reading_order,
+                        source="marker",
+                    )
+                )
             continue
         if mb.type is BlockType.TABLE and mb.table_cells:
             text = _render_table_markdown(

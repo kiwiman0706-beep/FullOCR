@@ -24,7 +24,10 @@ _SENTENCE_END = "。．！？…」』）】〉》”\"’'.!?)"
 # ノンブル/柱の残骸: 数字のみ / ローマ数字のみ / ごく短い記号列。
 _NOISE_RE = re.compile(r"^[\s0-9ivxlcIVXLC・．.\-—―]+$")
 # 本文の連結を途切れさせないブロック種別（段落の途中に挟まりうるもの）。
-_TRANSPARENT = {BlockType.FIGURE, BlockType.TABLE, BlockType.PAGE_HEADER, BlockType.PAGE_FOOTER}
+_TRANSPARENT = {
+    BlockType.FIGURE, BlockType.TABLE, BlockType.PAGE_HEADER, BlockType.PAGE_FOOTER,
+    BlockType.FORMULA,  # 別行立て数式は文の途中に挟まる
+}
 # 目次行の末尾（ページ番号 or リーダー罫）。
 _TOC_TAIL = re.compile(r"(?:[^0-9０-９,.，．][0-9０-９]{1,3}|\.{3,}|…{2,}|‥{2,})\s*$")
 
