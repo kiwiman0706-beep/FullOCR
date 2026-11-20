@@ -30,8 +30,11 @@ def _to_int(s: str) -> int:
 
 
 def _page_line_texts(page) -> list[str]:
-    return [b.text.strip() for b in page.ordered_blocks()
-            if b.type in (BlockType.BODY, BlockType.HEADING, BlockType.LIST) and b.text.strip()]
+    # ブロック内の改行（merge が目次行で残す）も1行として数える。1ページ丸ごと
+    # 1ブロックになった目次でも行単位で判定できるように。
+    return [ln.strip() for b in page.ordered_blocks()
+            if b.type in (BlockType.BODY, BlockType.HEADING, BlockType.LIST)
+            for ln in b.text.splitlines() if ln.strip()]
 
 
 def _toc_score(page) -> tuple[float, int, bool]:
@@ -49,7 +52,9 @@ def detect_toc_pages(doc: Document, front_ratio: float = 0.2, min_entries: int =
     n = len(doc.pages)
     if n == 0:
         return []
-    limit = max(1, int(n * front_ratio) + 1)
+    # 前付けが長い本（目次が10ページ超）や先頭だけ切り出したサンプルでも拾えるよう、
+    # 少なくとも先頭20ページは見る。
+    limit = min(n, max(20, int(n * front_ratio) + 1))
     found: list[int] = []
     for page in doc.pages[:limit]:
         score, entries, has_title = _toc_score(page)
@@ -57,6 +62,25 @@ def detect_toc_pages(doc: Document, front_ratio: float = 0.2, min_entries: int =
         if (entries >= min_entries and score >= 0.5) or (has_title and entries >= 2):
             found.append(page.number)
     return found
+
+
+def demote_toc_headings(doc: Document) -> int:
+    """印刷目次ページ上の「見出し」を本文に戻す（「目次」タイトル自体は残す）。
+
+    実本「化学の理論」で、目次ページの「第1章 熱化学」等を構造エンジンが見出しと
+    認識し、生成アウトラインに本物の章見出しと二重に並んでいた。戻り値: 降格数。
+    """
+    pages = set(doc.meta.toc_pages)
+    n = 0
+    for page in doc.pages:
+        if page.number not in pages:
+            continue
+        for b in page.blocks:
+            if b.type is BlockType.HEADING and not _TOC_TITLE.match(b.text):
+                b.type = BlockType.BODY
+                b.heading_level = None
+                n += 1
+    return n
 
 
 def detect_index_pages(doc: Document, back_ratio: float = 0.25, min_entries: int = 6) -> list[int]:

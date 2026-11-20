@@ -62,6 +62,10 @@ _LABEL_MAP: dict[str, BlockType] = {
     "page_header": BlockType.PAGE_HEADER,
     "page_footer": BlockType.PAGE_FOOTER,
     "footnote": BlockType.FOOTNOTE,
+    # 実本で確認: 印刷目次ページは "document_index"、項目:値の枠は "key_value_area"
+    # として返る。未対応だと OTHER になり目次検出・本文整形の対象外になっていた。
+    "document_index": BlockType.BODY,
+    "key_value_area": BlockType.BODY,
 }
 
 

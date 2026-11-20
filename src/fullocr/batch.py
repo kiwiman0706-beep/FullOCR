@@ -145,6 +145,7 @@ def build_ir_for_pdf(
 
     # 印刷された目次ページ／巻末索引ページの範囲を推定（無料・規則ベース）。
     doc.meta.toc_pages = tocdetect_mod.detect_toc_pages(doc)
+    tocdetect_mod.demote_toc_headings(doc)
     doc.meta.index_pages = tocdetect_mod.detect_index_pages(doc)
 
     # 書誌メタ取得（希望時のみ・ネット）。ファイル名から ISBN・出版社等を引く。

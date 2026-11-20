@@ -53,21 +53,90 @@ def _rescued_line_type(line: NDLLine, page_h: float) -> BlockType:
     return BlockType.BODY
 
 
+def _is_vertical(lines: list[NDLLine]) -> bool:
+    return sum(1 for ln in lines if ln.orientation is Orientation.VERTICAL) > len(lines) / 2
+
+
+def _split_columns(lines: list[NDLLine]) -> list[list[NDLLine]]:
+    """横書きの行を、x 範囲が重ならない「段（カラム）」に分ける（左→右）。
+
+    実本検証（CKD診療ガイド）で、2段組の左右に並んだ見出し「3. 人類の健康を…」
+    「4. わが国における…」を Docling が1ブロックにまとめ、行を上→下で並べると
+    2つの見出しの行が交互に混ざる事例があった。x 区間の重なりで行を段に束ねる。
+    行が段をまたぐ（全幅の行がある）場合は1段のまま。
+    """
+    if len(lines) < 2:
+        return [lines]
+    srt = sorted(lines, key=lambda ln: ln.bbox.x0)
+    cols: list[list[NDLLine]] = [[srt[0]]]
+    right = srt[0].bbox.x1
+    for ln in srt[1:]:
+        # 段間の溝（行高の半分程度）より右から始まる行は新しい段。
+        gap_tol = max(2.0, ln.bbox.height * 0.5)
+        if ln.bbox.x0 > right + gap_tol:
+            cols.append([ln])
+        else:
+            cols[-1].append(ln)
+        right = max(right, ln.bbox.x1)
+    return cols
+
+
+def _true_columns(lines: list[NDLLine]) -> list[list[NDLLine]] | None:
+    """「本当の段組」なら段ごとの行リストを返す。表のような行揃え（各段の行数が
+    同じ＝氏名・所属の2列など）は段組とみなさず None（従来どおり行順で読む）。"""
+    if _is_vertical(lines):
+        return None
+    cols = _split_columns(lines)
+    if len(cols) < 2:
+        return None
+    if len({len(c) for c in cols}) == 1 and len(cols[0]) > 1:
+        return None  # 行数が揃っている＝表形式の行並び
+    return cols
+
+
 def _order_lines(lines: list[NDLLine]) -> list[NDLLine]:
-    """ブロック内の行を読み順に並べる（縦書き=右→左, 横書き=上→下）。"""
+    """ブロック内の行を読み順に並べる（縦書き=右→左, 横書き=上→下、段組は段ごと）。"""
     if not lines:
         return lines
-    vertical = sum(1 for ln in lines if ln.orientation is Orientation.VERTICAL) > len(lines) / 2
-    if vertical:
+    if _is_vertical(lines):
         # 縦書き: 列は右から左、列内は上から下
         return sorted(lines, key=lambda ln: (-ln.bbox.cx, ln.bbox.cy))
+    cols = _true_columns(lines)
+    if cols:
+        out: list[NDLLine] = []
+        for col in cols:
+            out.extend(sorted(col, key=lambda ln: (ln.bbox.cy, ln.bbox.cx)))
+        return out
     return sorted(lines, key=lambda ln: (ln.bbox.cy, ln.bbox.cx))
+
+
+# 目次行（リーダー罫や「……12」で終わる行）。これらは1行ずつ改行を保つ。
+_TOC_LINE = re.compile(r"(?:\.{3,}|…{2,}|・{3,}|‥{2,}|—{3,})\s*[0-9０-９ivxlcIVXLC]*\s*$|(?:\.{3,}|…{2,}|‥{2,})")
+
+
+_ENDS_PAGENO = re.compile(r"[0-9０-９]{1,4}\s*$")
 
 
 def _join_text(lines: list[NDLLine]) -> str:
     ordered = _order_lines(lines)
     # 日本語は行間結合で空白を入れない（英数字主体なら空白の方が良いが簡易に連結）。
-    return "".join(ln.text for ln in ordered)
+    # ただし目次のようなリーダー罫つきの行は、行ごとに改行を残す（1行に潰れると読めない）。
+    # 縦書き目次はリーダー罫が無く「…6」とページ番号で終わるだけのことが多い（実本
+    # 「3秒で心電図を読む本」）ので、行の過半が番号で終わるブロックも目次扱いにする。
+    toc_block = len(ordered) >= 4 and sum(
+        1 for ln in ordered if _ENDS_PAGENO.search(ln.text) or _TOC_LINE.search(ln.text)
+    ) >= len(ordered) * 0.4
+    parts: list[str] = []
+    for i, ln in enumerate(ordered):
+        if i > 0:
+            prev = ordered[i - 1].text
+            if toc_block or _TOC_LINE.search(prev) or _TOC_LINE.search(ln.text):
+                parts.append("\n")
+            elif prev[-1:].isascii() and prev[-1:].isalpha() and ln.text[:1].isascii() \
+                    and ln.text[:1].isalpha():
+                parts.append(" ")  # 英単語の行またぎは空白で区切る
+        parts.append(ln.text)
+    return "".join(parts)
 
 
 def _majority_orientation(lines: list[NDLLine]) -> Orientation:
@@ -91,6 +160,12 @@ def merge_page(
     page = Page(number=number, width=pw, height=ph)
 
     threshold = cfg.assign_overlap_threshold
+
+    # --- 章扉ページ: 構造エンジンが何も検出せず、短い行が数行だけ ---
+    title = _title_page_heading(number, ndl, marker, ph)
+    if title is not None:
+        page.blocks.append(title)
+        return page
 
     # --- Marker が無い場合: NDL だけで組む（1行1ブロックを位置順に） ---
     if marker is None or not marker.blocks:
@@ -130,11 +205,40 @@ def merge_page(
         else:
             unassigned.append(line)
 
+    # NDL の行順（JSON 内の並び）は NDL 自身の読み順推定。縦書きページでは
+    # 構造エンジン（横書き前提）の読み順より信頼できるので、並べ替えの鍵に使う。
+    line_idx = {id(ln): k for k, ln in enumerate(ndl.lines)}
+    block_key: dict[str, int] = {}
+
     # --- Marker ブロック順に IR ブロックを生成 ---
     for i, mb in sorted(enumerate(marker.blocks), key=lambda kv: kv[1].reading_order):
         lines = assigned[i]
         # NDL 座標系での bbox（Marker bbox を正規化→NDL px へ）
         bbox_ndl = _denorm_bbox(_norm_bbox(mb.bbox, marker.width, marker.height), pw, ph)
+        # 左右に並んだ別々の見出し/キャプションを1ブロックにまとめられた場合は段ごとに分割。
+        if mb.type in (BlockType.HEADING, BlockType.CAPTION) and lines:
+            cols = _true_columns(lines)
+            if cols:
+                for c, col in enumerate(cols):
+                    bid = f"p{number}_b{mb.reading_order}" + (f"c{c}" if c else "")
+                    page.blocks.append(
+                        Block(
+                            id=bid,
+                            bbox=_lines_bbox(col),
+                            type=mb.type,
+                            text=_join_text(col),
+                            orientation=_majority_orientation(col),
+                            reading_order=mb.reading_order,
+                            heading_level=mb.heading_level
+                            if mb.type is BlockType.HEADING else None,
+                            confidence=_avg_conf(col),
+                            source="merged",
+                        )
+                    )
+                    block_key[bid] = min(line_idx[id(ln)] for ln in col)
+                continue
+        if lines:
+            block_key[f"p{number}_b{mb.reading_order}"] = min(line_idx[id(ln)] for ln in lines)
         if mb.type is BlockType.FIGURE:
             # 図: テキストは持たず領域のみ（後段でページ画像から切り出し）
             page.blocks.append(
@@ -186,9 +290,151 @@ def merge_page(
                     source="ndl-rescue",
                 )
             )
+            block_key[f"p{number}_u{j}"] = line_idx[id(line)]
 
+    vertical_page = _is_vertical(ndl.lines) if ndl.lines else False
+    _reorder_by_ndl(page, block_key, vertical_page)
+    if not vertical_page:
+        _attach_captions(page)
     page.blocks = _merge_label_pairs(page.blocks)
     return page
+
+
+# 図表キャプションらしい本文（「図1 …」「表2-3 …」「Fig. 4」）。
+_CAPTION_TEXT = re.compile(r"^(?:図|表|Fig\.?|Figure|Table)\s*[0-9０-９A-Za-z]", re.IGNORECASE)
+
+
+def _attach_captions(page: Page) -> None:
+    """キャプションを、同じページで最も近い図/表の直前（上にあるとき）か直後に移す。
+
+    実本（CKD診療ガイド）では、Docling の読み順だと「図4 …」が図の後の2段組本文を
+    すべて読み終えた後に出ていた。また本文扱いになっているキャプション（短い・
+    句点なし・「図N」で始まる）も CAPTION に直す。
+    """
+    blocks = sorted(page.blocks, key=lambda b: b.reading_order)
+    for b in blocks:
+        t = b.text.strip()
+        if (
+            b.type is BlockType.BODY
+            and _CAPTION_TEXT.match(t)
+            and len(t) <= 80
+            and "。" not in t
+        ):
+            b.type = BlockType.CAPTION
+    targets = [b for b in blocks if b.type in (BlockType.FIGURE, BlockType.TABLE)]
+    if not targets:
+        return
+    for cap in [b for b in blocks if b.type is BlockType.CAPTION]:
+        best, best_gap = None, None
+        for f in targets:
+            # 横方向に重なりがあるものだけ（隣の段の図には付けない）
+            if min(cap.bbox.x1, f.bbox.x1) <= max(cap.bbox.x0, f.bbox.x0):
+                continue
+            if cap.bbox.cy >= f.bbox.cy:
+                gap = max(0.0, cap.bbox.y0 - f.bbox.y1)
+            else:
+                gap = max(0.0, f.bbox.y0 - cap.bbox.y1)
+            if best_gap is None or gap < best_gap:
+                best, best_gap = f, gap
+        # 遠すぎる（ページ高の15%超）なら動かさない
+        if best is None or (page.height and best_gap > page.height * 0.15):
+            continue
+        blocks.remove(cap)
+        idx = blocks.index(best)
+        blocks.insert(idx + 1 if cap.bbox.cy >= best.bbox.cy else idx, cap)
+    for i, b in enumerate(blocks, start=1):
+        b.reading_order = i
+    page.blocks = blocks
+
+
+_DIGITS_ONLY = re.compile(r"^[\s0-9０-９IVXivx]+$")
+
+
+def _title_page_heading(
+    number: int, ndl: NDLPage, marker: LayoutPage | None, page_h: float
+) -> Block | None:
+    """章扉（大きな章番号＋章タイトルだけのページ）を見出し1ブロックにする。
+
+    実本「3秒で心電図を読む本」の章扉は構造エンジンが何も検出せず、NDL 行が本文として
+    救済された後、本文整形で前ページ（目次）の末尾に連結されて章タイトルが消えていた。
+    条件: 表紙付近（3ページ目まで）ではない／構造エンジンが図・表を検出していない／
+    柱・ノンブル域を除いた行が1〜4行で合計40字以内。数字だけの行（章番号）は除く。
+    """
+    if number <= 3 or not ndl.lines:
+        return None
+    if marker is not None and any(
+        b.type in (BlockType.FIGURE, BlockType.TABLE) for b in marker.blocks
+    ):
+        return None  # 図表のあるページは対象外（図を落とさないため）
+    lines = [
+        ln for ln in ndl.lines
+        if _rescued_line_type(ln, page_h) is BlockType.BODY and not _DIGITS_ONLY.match(ln.text)
+    ]
+    if not (1 <= len(lines) <= 4) or sum(len(ln.text) for ln in lines) > 40:
+        return None
+    ordered = _order_lines(lines)
+    return Block(
+        id=f"p{number}_t1",
+        bbox=_lines_bbox(ordered),
+        type=BlockType.HEADING,
+        text=" ".join(ln.text.strip() for ln in ordered),
+        orientation=_majority_orientation(ordered),
+        reading_order=1,
+        heading_level=1,
+        confidence=_avg_conf(ordered),
+        source="ndl-title",
+    )
+
+
+def _lines_bbox(lines: list[NDLLine]) -> BBox:
+    return BBox(
+        x0=min(ln.bbox.x0 for ln in lines),
+        y0=min(ln.bbox.y0 for ln in lines),
+        x1=max(ln.bbox.x1 for ln in lines),
+        y1=max(ln.bbox.y1 for ln in lines),
+    )
+
+
+def _reorder_by_ndl(page: Page, key: dict[str, int], vertical: bool) -> None:
+    """NDL の行順を使って読み順を補正する（reading_order を振り直す）。
+
+    - 縦書きページ: 構造エンジンは横書き前提で段落の順を取り違える（実本「3秒で心電図
+      を読む本」の序文で、段落が逆順・ばらばらに出た）。テキストを持つブロックは NDL の
+      行順で並べ、図はその右端より左（=縦書きでは後）にある最初の行の直前に置く。
+    - 横書きページ: 構造エンジンの順を尊重しつつ、救済行（どのブロックにも入らなかった
+      NDL 行）だけを、NDL で直前にある行を含むブロックの直後へ差し込む
+      （従来はページ末尾に付けていたため、文の途中の断片が無関係な位置に出ていた）。
+    """
+    blocks = sorted(page.blocks, key=lambda b: b.reading_order)
+    if not key:
+        return
+    if vertical:
+        keyed = [b for b in blocks if b.id in key]
+        if len(keyed) < 2:
+            return
+        def sort_key(b: Block) -> float:
+            if b.id in key:
+                return float(key[b.id])
+            # 図など: 自分より左にある（後に読む）テキストのうち最小の行順の直前。
+            later = [key[o.id] for o in keyed if o.bbox.cx < b.bbox.x0]
+            return (min(later) - 0.5) if later else float("inf")
+        ordered = sorted(blocks, key=sort_key)
+    else:
+        rescued = [b for b in blocks if b.source == "ndl-rescue" and b.id in key]
+        if not rescued:
+            return
+        ordered = [b for b in blocks if b not in rescued]
+        for r in sorted(rescued, key=lambda b: key[b.id]):
+            # NDL 順で r より前にある行を持つブロックのうち、最も r に近いもの。
+            prev = [b for b in ordered if b.id in key and key[b.id] < key[r.id]]
+            if not prev:
+                ordered.insert(0, r)
+                continue
+            anchor = max(prev, key=lambda b: key[b.id])
+            ordered.insert(ordered.index(anchor) + 1, r)
+    for i, b in enumerate(ordered, start=1):
+        b.reading_order = i
+    page.blocks = ordered
 
 
 def _merge_label_pairs(blocks: list[Block]) -> list[Block]:
@@ -336,6 +582,40 @@ def assign_heading_levels(doc: Document, max_levels: int = 3) -> None:
                 b.heading_level = 1 + min(max_levels - 1, int(rank * max_levels))
 
 
+# 見出しらしくない文字列: 句読点で終わる（＝文）／数字・記号だけ（ノンブル等）。
+_SENTENCE_TAIL = tuple("。、．，")
+_SYMBOLS_ONLY = re.compile(r"^[\s0-9０-９\W_]+$")
+# これより長い「見出し」は本文の太字段落の誤検出とみなす。
+_MAX_HEADING_CHARS = 60
+
+
+def demote_false_headings(doc: Document) -> int:
+    """構造エンジンが見出しと誤認した本文を BODY に戻す（LLM 不要の規則）。
+
+    実本「3秒で心電図を読む本」で、太字・大きめの本文（「ことでしょう。」「心電図に
+    あまり多くを求めない。」）やノンブル「31」「11」が見出しとして出て、目次が
+    本文の断片だらけになった。句点で終わる・長すぎる・数字記号だけ、は見出しにしない。
+    戻り値: 降格した数。
+    """
+    n = 0
+    for page in doc.pages:
+        for b in page.blocks:
+            if b.type is not BlockType.HEADING:
+                continue
+            t = b.text.strip()
+            if (
+                not t
+                or t.endswith(_SENTENCE_TAIL)
+                or "。" in t
+                or len(t) > _MAX_HEADING_CHARS
+                or _SYMBOLS_ONLY.match(t)
+            ):
+                b.type = BlockType.BODY
+                b.heading_level = None
+                n += 1
+    return n
+
+
 def build_document(
     ndl_pages: list[NDLPage],
     marker_pages: list[LayoutPage],
@@ -352,5 +632,6 @@ def build_document(
         ndl = ndl_pages[i] if i < len(ndl_pages) else None
         marker = marker_pages[i] if i < len(marker_pages) else None
         doc.pages.append(merge_page(i + 1, ndl, marker, cfg))
+    demote_false_headings(doc)
     assign_heading_levels(doc)
     return doc

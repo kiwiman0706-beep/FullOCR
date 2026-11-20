@@ -26,6 +26,8 @@ PAGE_ANCHOR_SCHEME = "fullocr-1"
 _NOMBRE_ARABIC = re.compile(r"^\d{1,4}$")
 _NOMBRE_ROMAN = re.compile(r"^[ivxlcdm]{1,6}$", re.IGNORECASE)
 _ZEN2HAN = str.maketrans("０１２３４５６７８９", "0123456789")
+# 箇条書きの行頭記号（原文由来）。
+_BULLET_HEAD = re.compile(r"^[●○◆◇■□▪▫・•◉▶►▸◎]\s*")
 
 
 def _detect_nombre(page: Page) -> str | None:
@@ -140,6 +142,8 @@ def _block_to_md(b: Block, cfg: RenderConfig) -> str | None:
     if b.type is BlockType.CAPTION:
         return f"*{t}*" if t else None
     if b.type is BlockType.LIST:
+        # 原文の行頭記号（●・■ 等）は Markdown の箇条書き記号と二重になるので外す。
+        t = _BULLET_HEAD.sub("", t)
         return f"- {t}" if t else None
     if b.type is BlockType.FOOTNOTE:
         return f"> {t}" if t else None
@@ -148,7 +152,12 @@ def _block_to_md(b: Block, cfg: RenderConfig) -> str | None:
         # 画像＋検索用キャプション（中のOCRテキスト）。無理なら Markdown 表/テキスト。
         if cfg.tables_as_images and b.image_path:
             link = _image_link(b.image_path, cfg, alt=t or "table")
-            return f"{link}\n*{t}*" if t else link
+            if not t:
+                return link
+            # 中のOCRテキスト（Markdown表）は *…* で囲むと表として崩れるので、
+            # 折りたたみコールアウトに入れる（検索には引っかかり、見た目は画像が主）。
+            quoted = "\n".join(f"> {ln}" for ln in t.splitlines())
+            return f"{link}\n\n> [!info]- 表のテキスト\n{quoted}"
         return t or None
     if not t:
         return None
