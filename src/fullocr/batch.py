@@ -145,6 +145,7 @@ def build_ir_for_pdf(
 
     # 印刷された目次ページ／巻末索引ページの範囲を推定（無料・規則ベース）。
     doc.meta.toc_pages = tocdetect_mod.detect_toc_pages(doc)
+    tocdetect_mod.demote_toc_headings(doc)
     doc.meta.index_pages = tocdetect_mod.detect_index_pages(doc)
 
     # 書誌メタ取得（希望時のみ・ネット）。ファイル名から ISBN・出版社等を引く。
@@ -219,6 +220,12 @@ def process_pdf(
         # 認識した見出しから PDF のしおり(アウトライン)を付ける。
         if cfg.pdf_bookmarks:
             add_pdf_bookmarks(dest_pdf, doc)
+
+    if cfg.jisui_beside_source:
+        step(99, "原本PDFの隣に .jisui を書き出し中…")
+        from .pack import pack_book
+
+        pack_book(cfg, book, pdf_mode="source", source_pdf=pdf_path)
 
     step(100, "完了")
     return out_book

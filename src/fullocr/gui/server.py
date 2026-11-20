@@ -245,7 +245,7 @@ async def convert(
     hide_toc_pages: bool = Form(False),
     pdf_bookmarks: bool = Form(True),
     pdf_page_links: bool = Form(False),
-    page_anchors: bool = Form(False),
+    page_anchors: bool = Form(True),
     fetch_biblio: bool = Form(False),
     llm_structure: bool = Form(False),
     llm_anomaly: bool = Form(False),

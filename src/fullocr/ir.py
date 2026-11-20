@@ -30,6 +30,7 @@ class BlockType(str, Enum):
     PAGE_HEADER = "page_header"  # ページ上部のヘッダ（柱・ノンブル等）
     PAGE_FOOTER = "page_footer"  # ページ下部のフッタ
     FOOTNOTE = "footnote"    # 脚注
+    FORMULA = "formula"      # 数式（構造エンジンが LaTeX 化できたものだけ。text は LaTeX）
     OTHER = "other"
 
 
@@ -100,6 +101,9 @@ class Block(BaseModel):
     confidence: float | None = None
     image_path: str | None = None     # type == FIGURE のとき切り出し画像の相対パス
     source: str = ""                  # 由来メモ（"ndl", "marker", "merged" 等）
+    # type == FIGURE のとき、図の領域内にあった OCR テキスト（バナーの章題・吹き出し・
+    # 図中ラベル）。本文には出さず、検索用に図の下の折りたたみ枠へ出す。
+    ocr_text: str = ""
 
 
 class Page(BaseModel):

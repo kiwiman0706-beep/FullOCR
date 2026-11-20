@@ -61,13 +61,15 @@ class DoclingConfig(BaseModel):
     # サブコマンドは `convert`（`docling <file>` の省略形も動くが明示する）。
     command: str = "docling convert {input} --to json --output {outdir} --no-ocr"
     json_glob: str = "**/*.json"
-    # --- 精度ノブ（凍結時の in-process 実行に効く。既定は据え置き。PDCAで比較する用） ---
+    # --- 精度ノブ（CLI 経路はフラグに翻訳、凍結時は in-process に適用。PDCAで比較する用） ---
     # Docling がモデルに渡すページ画像の倍率。上げると検出精度が上がる可能性（速度低下）。
     images_scale: float = 1.0
     # 表構造(TableFormer)を解析するか。表を画像扱いにするなら不要にもできる。
     do_table_structure: bool = True
     # 表構造の精度モード: "fast" / "accurate"。
     table_mode: str = "fast"
+    # 数式を LaTeX として認識する（Docling の formula enrichment。重い）。
+    enrich_formula: bool = False
 
 
 class MinerUConfig(BaseModel):
@@ -164,7 +166,8 @@ class RenderConfig(BaseModel):
     # 各ページ境界に、見えない HTML コメントのページアンカーを埋める（アウトライン
     # を汚さない）。外部リーダー(dsbooks 等)が「MD の今の位置 → 原PDFの該当ページ」
     # へ切り替えるための機械可読マーカー。仕様: docs/page-anchor-spec.md。
-    page_anchors: bool = False
+    # 既定 ON: 不可視でアウトラインも汚さず、Theta Book Hatch の「原文を見る」に必須。
+    page_anchors: bool = True
 
 
 class DigestConfig(BaseModel):
@@ -205,6 +208,10 @@ class PipelineConfig(BaseModel):
     text_cleanup: bool = True
     # NDL の透明テキストPDF に、認識した見出しから PDF のしおり(アウトライン)を付ける。
     pdf_bookmarks: bool = True
+    # 変換の最後に、原本PDFの隣へ「原本と同じ名前.jisui」を書く（原文PDFは原本を参照）。
+    # Theta Book Hatch で X.pdf と X.jisui が1冊にまとまる。原本フォルダに書き込むので既定OFF
+    # （bookhatch プリセットで ON）。
+    jisui_beside_source: bool = False
     # ファイル名から書誌メタ（ISBN・出版社・刊行年）をネットで取得して front-matter に入れる。
     # ネットワークを使うため既定OFF（希望時のみ）。事実はDB由来（LLMに作らせない）。
     fetch_biblio: bool = False
