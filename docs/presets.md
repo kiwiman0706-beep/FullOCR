@@ -8,7 +8,7 @@
 
 | 名前 | 用途 | 主な差分 |
 |---|---|---|
-| `bookhatch` | Theta Book Hatch で読む（**既定とほぼ同じ**） | 不可視ページアンカー ON、見出しの可視PDFリンク OFF、印刷目次は残す |
+| `bookhatch` | Theta Book Hatch で読む | 原本PDFの隣に同名 `.jisui`（原文PDF＝原本を参照）、不可視ページアンカー ON、見出しの可視PDFリンク OFF、印刷目次は残す |
 | `obsidian` | Obsidian で読む | アンカー ON＋見出しごとに「📄原文 p.N」リンク、印刷目次を `%%` で隠す |
 | `math` | 数式の多い理工系 | Docling の数式認識（`enrich_formula`）で数式を `$$LaTeX$$` に |
 

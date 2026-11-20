@@ -18,7 +18,8 @@ from .config import PipelineConfig
 # name -> (説明, 上書き差分)
 PRESETS: dict[str, tuple[str, dict[str, Any]]] = {
     "bookhatch": (
-        ("Theta Book Hatch で読む（既定）。不可視ページアンカーで原文PDFの該当ページへ飛べる。"
+        ("Theta Book Hatch で読む。原本PDFの隣に同じ名前の .jisui を書き、本棚で原本と1冊に"
+         "まとまる。不可視ページアンカーで MD⇄原本PDF を同じページで行き来できる。"
          "印刷目次は残す（AI構造化なしだと生成アウトラインが平坦なため）。"),
         {
             "render": {
@@ -28,6 +29,7 @@ PRESETS: dict[str, tuple[str, dict[str, Any]]] = {
                 "tables_as_images": True,
             },
             "pdf_bookmarks": True,
+            "jisui_beside_source": True,
         },
     ),
     "obsidian": (

@@ -118,3 +118,46 @@ def test_pack_omits_page_anchors_when_md_has_none(tmp_path):
     man = json.loads(zipfile.ZipFile(r["jisui"]).read("theta-book.json"))
     assert "page_anchors" not in man
     assert man["page_offset"] == 8
+
+
+def test_pack_source_writes_beside_original_and_references_it(tmp_path):
+    # 8Books 運用: 原本 X.pdf の隣に X.jisui。原文PDFは原本（コピーしない）。
+    # Theta Book Hatch は同じフォルダ・同じ名前の X.pdf と X.jisui を1冊にまとめる。
+    cfg, book, pdf_name = _make_book(tmp_path)
+    lib = tmp_path / "NAS" / "医学書"
+    lib.mkdir(parents=True)
+    src = lib / "3秒で心電図を読む本.pdf"
+    src.write_bytes(b"%PDF-1.4 original\n")
+    r = pack.pack_book(cfg, book, pdf_mode="source", source_pdf=src)
+    jisui = lib / "3秒で心電図を読む本.jisui"
+    assert r["jisui"] == str(jisui) and jisui.exists()
+    assert sorted(p.name for p in lib.iterdir()) == ["3秒で心電図を読む本.jisui", "3秒で心電図を読む本.pdf"]
+    assert src.read_bytes() == b"%PDF-1.4 original\n"  # 原本は触らない
+    with zipfile.ZipFile(jisui) as z:  # Windows は開いたままだと置き換えられない
+        man = json.loads(z.read("theta-book.json"))
+        names = z.namelist()
+    assert man["pdf"] == {"mode": "sidecar", "name": pdf_name, "sidecar": "3秒で心電図を読む本.pdf"}
+    assert pdf_name not in names  # テキストPDFは入れない
+    assert man["page_anchors"] == "fullocr-1"
+    # 2回目（再変換）は自分の .jisui なので上書きできる
+    pack.pack_book(cfg, book, pdf_mode="source", source_pdf=src)
+
+
+def test_pack_source_never_overwrites_a_foreign_jisui(tmp_path):
+    import pytest
+
+    cfg, book, _ = _make_book(tmp_path)
+    src = tmp_path / "X.pdf"
+    src.write_bytes(b"%PDF-1.4\n")
+    foreign = tmp_path / "X.jisui"
+    foreign.write_bytes(b"not ours")
+    with pytest.raises(FileExistsError):
+        pack.pack_book(cfg, book, pdf_mode="source", source_pdf=src)
+    assert foreign.read_bytes() == b"not ours"
+
+
+def test_bookhatch_preset_enables_jisui_beside_source():
+    from fullocr.presets import apply_preset
+
+    assert PipelineConfig().jisui_beside_source is False  # 原本フォルダに書くので既定OFF
+    assert apply_preset(PipelineConfig(), "bookhatch").jisui_beside_source is True

@@ -286,7 +286,7 @@ def digest_cmd(
 def pack_cmd(
     target: Path = typer.Argument(..., help="ir.json、work/<book>/、または work/（全書籍）"),
     config: Path | None = typer.Option(None, "--config", "-c", help="設定 JSON"),
-    pdf: str = typer.Option("embed", "--pdf", help="原典PDFの扱い: embed（同梱）/ sidecar（隣に .pdf）/ none"),
+    pdf: str = typer.Option("embed", "--pdf", help="原典PDFの扱い: embed（同梱）/ sidecar（隣に .pdf）/ source（原本PDFの隣に同名 .jisui、原本を参照）/ none"),
 ):
     """変換結果を 1ファイルの .jisui（ZIP＋マニフェスト）にまとめる。
 

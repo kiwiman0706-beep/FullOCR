@@ -221,6 +221,12 @@ def process_pdf(
         if cfg.pdf_bookmarks:
             add_pdf_bookmarks(dest_pdf, doc)
 
+    if cfg.jisui_beside_source:
+        step(99, "原本PDFの隣に .jisui を書き出し中…")
+        from .pack import pack_book
+
+        pack_book(cfg, book, pdf_mode="source", source_pdf=pdf_path)
+
     step(100, "完了")
     return out_book
 
