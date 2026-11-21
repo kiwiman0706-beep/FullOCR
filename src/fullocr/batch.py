@@ -509,12 +509,16 @@ def process_folder(
     recursive: bool = False,
     skip_existing: bool = True,
     retries: int = 1,
+    limit: int | None = None,
+    max_seconds: float | None = None,
     progress=None,
     run_engines: bool = True,
 ) -> dict[str, str]:
     """フォルダ内の PDF を一括処理。結果マップ {pdf名: 状態} を返す。
 
     recursive=True でサブフォルダも辿る（work/out のフォルダ名は衝突しないよう一意化）。
+    limit（この回に変換する最大冊数）/ max_seconds（経過時間の上限）で区切れる。区切った
+    残りは未処理のまま（次回 skip_existing で再開）＝夜間運用に使える。
     run_engines=False にすると、NDL/構造エンジンを起動せず既存の作業JSONから下流
     （merge・目次検出・LLM・レンダリング）だけ再実行する（PDCA の高速反復用）。
     その場合は skip_existing=False を併用しないと既存出力でスキップされる点に注意。
@@ -523,6 +527,8 @@ def process_folder(
     pdfs = sorted(folder.rglob(pattern) if recursive else folder.glob(pattern))
     names = _unique_book_names(pdfs, folder)
     results: dict[str, str] = {}
+    start = time.time()
+    processed = 0
     for pdf in pdfs:
         book = names[pdf]
         # 結果キー: 再帰時は相対パスの方が分かりやすい（別フォルダの同名本を区別）。
@@ -533,9 +539,15 @@ def process_folder(
             if progress:
                 progress(key, "skipped")
             continue
+        # 上限（冊数・時間）に達したら、残りは手つかずで止める（次回再開）。
+        if limit is not None and processed >= limit:
+            break
+        if max_seconds is not None and (time.time() - start) >= max_seconds:
+            break
         state = _process_with_retry(pdf, cfg, retries, progress, run_engines,
                                     book_name=book, key=key)
         results[key] = state
+        processed += 1
     return results
 
 
@@ -548,6 +560,8 @@ def run_batch(
     skip_existing: bool = True,
     run_engines: bool = True,
     retries: int = 1,
+    limit: int | None = None,
+    max_minutes: float | None = None,
 ) -> dict:
     """「お任せ」一括変換。詳細はログ**ファイル**へ流し、要約 dict を返す。
 
@@ -575,7 +589,9 @@ def run_batch(
 
         results = process_folder(
             folder, cfg, recursive=recursive, skip_existing=skip_existing,
-            retries=retries, progress=_progress, run_engines=run_engines,
+            retries=retries, limit=limit,
+            max_seconds=(max_minutes * 60 if max_minutes else None),
+            progress=_progress, run_engines=run_engines,
         )
         elapsed = time.time() - t0
         done = sorted(n for n, s in results.items() if s == "done")

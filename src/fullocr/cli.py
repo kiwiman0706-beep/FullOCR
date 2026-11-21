@@ -109,18 +109,22 @@ def batch(
     ),
     no_skip: bool = typer.Option(False, "--no-skip", help="既存出力をスキップしない"),
     retries: int = typer.Option(1, "--retries", help="1冊あたりの失敗リトライ回数"),
+    limit: int | None = typer.Option(None, "--limit", help="この回に変換する最大冊数（夜間運用）"),
+    max_minutes: float | None = typer.Option(None, "--max-minutes", help="経過時間の上限（分）。超えたら次回再開"),
     preset: str | None = typer.Option(None, "--preset", "-p", help=_PRESET_HELP),
 ):
     """フォルダを丸ごと「お任せ」変換する（Claudeに投げる想定）。
 
     1冊ごとの進捗は**ログファイル**へ流し、画面には最後の要約と失敗一覧だけ出す。
     失敗した本は out/batch_report.json に原因付きで残るので、そこだけ後追いすればよい。
+    --limit / --max-minutes で区切ると、残りは未処理のまま（次回 skip で再開）＝夜間運用。
     """
     cfg = _load_cfg(config, preset)
     with console.status(f"一括変換中: {folder}（詳細はログファイルへ）"):
         rep = run_batch(
             folder, cfg, log_path=log, recursive=recursive, skip_existing=not no_skip,
-            run_engines=not no_engines, retries=retries,
+            run_engines=not no_engines, retries=retries, limit=limit,
+            max_minutes=max_minutes,
         )
     console.print(
         f"[bold]変換バッチ完了[/]  合計 {rep['total']} 冊 / {rep['elapsed_sec']:.0f}秒"

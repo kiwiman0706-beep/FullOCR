@@ -128,3 +128,31 @@ def test_resume_does_not_skip_foreign_jisui(tmp_path, monkeypatch):
                         lambda pdf, cfg, **k: called.append(k.get("book_name")) or (cfg.out_dir / "x"))
     batch.process_folder(books, cfg, recursive=True)
     assert called == ["本"]        # 他人の .jisui ではスキップしない
+
+
+def test_limit_stops_after_n_books(tmp_path, monkeypatch):
+    books = tmp_path / "books"
+    for i in range(5):
+        _touch(books / f"b{i}.pdf")
+    cfg = PipelineConfig()
+    cfg.out_dir = tmp_path / "out"
+    cfg.work_dir = tmp_path / "work"
+
+    calls: list[str] = []
+    monkeypatch.setattr(batch, "process_pdf",
+                        lambda pdf, cfg, **k: calls.append(k.get("book_name")) or (cfg.out_dir / "x"))
+    results = batch.process_folder(books, cfg, limit=2, skip_existing=False)
+    assert len(calls) == 2            # 2冊で打ち切り
+    assert len(results) == 2          # 残りは未処理（次回再開）
+
+
+def test_max_seconds_zero_processes_none(tmp_path, monkeypatch):
+    books = tmp_path / "books"
+    _touch(books / "a.pdf")
+    cfg = PipelineConfig()
+    cfg.out_dir = tmp_path / "out"
+    cfg.work_dir = tmp_path / "work"
+    monkeypatch.setattr(batch, "process_pdf",
+                        lambda *a, **k: (_ for _ in ()).throw(AssertionError("時間ゼロなら処理しない")))
+    results = batch.process_folder(books, cfg, max_seconds=0.0, skip_existing=False)
+    assert results == {}
