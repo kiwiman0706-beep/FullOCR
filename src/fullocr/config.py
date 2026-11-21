@@ -206,6 +206,10 @@ class PipelineConfig(BaseModel):
     page_render_dpi: int = 300
     # ルールベースの本文整形（ページ境界の改行連結・ノンブル残骸除去など）。無料・既定ON。
     text_cleanup: bool = True
+    # born-digital（電子生成）PDF は埋め込みテキスト層が正確なので、NDL OCR を省いて
+    # そこから直接 IR を作る（桁違いに速い）。スキャンPDFは判定で除外し従来どおり NDL。
+    # fitz(PyMuPDF) が無い環境では自動的に無効。
+    prefer_text_layer: bool = True
     # NDL の透明テキストPDF に、認識した見出しから PDF のしおり(アウトライン)を付ける。
     pdf_bookmarks: bool = True
     # 変換の最後に、原本PDFの隣へ「原本と同じ名前.jisui」を書く（原文PDFは原本を参照）。

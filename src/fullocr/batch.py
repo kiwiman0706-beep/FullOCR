@@ -117,15 +117,27 @@ def build_ir_for_pdf(
     ndl_out = work / "ndl"
     engine_out = work / cfg.engine
     pages_out = work / "pages"
+    textlayer_json = work / "textlayer.json"   # born-digital 抽出結果のキャッシュ
 
     engine_cfg, run_engine, load_engine = _engine_adapter(cfg)
 
     if run_engines:
-        if cfg.ndl.enabled:
-            step(3, "NDLOCR-Lite（日本語OCR）を実行中…（時間がかかります）")
-            ndl_mod.run_ndl(pdf_path, ndl_out, cfg.ndl, on_output=on_output)
-        # NDL の透明PDFがあれば構造エンジン/ページ描画に使う。無ければ元PDF。
-        transparent = _first_glob(ndl_out, cfg.ndl.pdf_glob) or pdf_path
+        from .pipeline import pdftext as pdftext_mod
+
+        use_text_layer = cfg.prefer_text_layer and pdftext_mod.is_born_digital(pdf_path)
+        if use_text_layer:
+            # born-digital: 埋め込みテキスト層から直接 IR を作る（NDL をスキップ）。
+            step(3, "テキスト層から抽出中（born-digital・NDL をスキップ）…")
+            pdftext_mod.save_pages(pdftext_mod.load_text_layer_pages(pdf_path), textlayer_json)
+            transparent = pdf_path            # 原本自体がテキスト層を持つ
+        else:
+            if textlayer_json.exists():
+                textlayer_json.unlink()       # 前回 born-digital 扱いした名残を掃除
+            if cfg.ndl.enabled:
+                step(3, "NDLOCR-Lite（日本語OCR）を実行中…（時間がかかります）")
+                ndl_mod.run_ndl(pdf_path, ndl_out, cfg.ndl, on_output=on_output)
+            # NDL の透明PDFがあれば構造エンジン/ページ描画に使う。無ければ元PDF。
+            transparent = _first_glob(ndl_out, cfg.ndl.pdf_glob) or pdf_path
         if getattr(engine_cfg, "enabled", True):
             step(35, f"レイアウト解析（{cfg.engine}）を実行中…")
             run_engine(transparent, engine_out, engine_cfg, on_output=on_output)
@@ -133,7 +145,12 @@ def build_ir_for_pdf(
         render_pdf_pages(transparent, pages_out, dpi=cfg.page_render_dpi)
 
     step(66, "OCR結果を読み込み中…")
-    ndl_pages = ndl_mod.load_ndl_dir(ndl_out, cfg.ndl.json_glob)
+    # born-digital の場合はキャッシュしたテキスト層を使う（--no-engines でも再利用できる）。
+    if textlayer_json.exists():
+        from .pipeline import pdftext as pdftext_mod
+        ndl_pages = pdftext_mod.load_pages_json(textlayer_json)
+    else:
+        ndl_pages = ndl_mod.load_ndl_dir(ndl_out, cfg.ndl.json_glob)
     layout_pages: list[LayoutPage] = load_engine(engine_out, engine_cfg.json_glob)
 
     step(70, "テキストとレイアウトを統合中…")
@@ -205,6 +222,10 @@ def process_pdf(
     transparent_pdf = _first_glob(ndl_out, cfg.ndl.pdf_glob)
     if transparent_pdf is not None:
         doc.meta.pdf_name = transparent_pdf.name
+    else:
+        # born-digital（NDL透明PDFなし）: 原本PDFがそのまま原文。ページリンク/アンカーの
+        # 張り先・bookhatch の sidecar マニフェストが原本名を指すようにする。
+        doc.meta.pdf_name = pdf_path.name
 
     # IR を保存（GUI 補正の入力になる）。
     step(90, "中間データ(IR)を保存中…")

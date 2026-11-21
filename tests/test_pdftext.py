@@ -13,8 +13,8 @@ def _born_digital_pdf(path, pages=4):
     doc = fitz.open()
     for i in range(pages):
         page = doc.new_page(width=400, height=560)
-        body = (f"第{i + 1}章 本文のテスト。" + "これは電子生成PDFの段落です。" * 8)
-        page.insert_textbox(fitz.Rect(40, 40, 360, 520), body, fontsize=11, fontname="japan")
+        body = (f"第{i + 1}章 本文のテスト。" + "これは電子生成PDFの段落です。" * 20)
+        page.insert_textbox(fitz.Rect(40, 40, 360, 540), body, fontsize=10, fontname="japan")
     doc.save(str(path))
     doc.close()
 
@@ -66,3 +66,30 @@ def test_cache_roundtrip(tmp_path):
     assert len(back) == len(pages)
     assert back[0].lines[0].text == pages[0].lines[0].text
     assert back[0].lines[0].bbox.x0 == pages[0].lines[0].bbox.x0
+
+
+def test_build_ir_uses_text_layer_and_skips_ndl(tmp_path, monkeypatch):
+    """born-digital PDF は NDL を呼ばずにテキスト層から IR を作る。"""
+    from fullocr import batch
+    from fullocr.config import PipelineConfig
+    from fullocr.pipeline import ndl as ndl_mod
+
+    pdf = tmp_path / "digital.pdf"
+    _born_digital_pdf(pdf, pages=3)
+    cfg = PipelineConfig()
+    cfg.work_dir = tmp_path / "work"
+    cfg.engine = "docling"
+    cfg.docling.enabled = False   # レイアウトエンジンは呼ばない（テキスト層のみ）
+
+    def boom(*a, **k):
+        raise AssertionError("born-digital では NDL を呼ばない")
+
+    monkeypatch.setattr(ndl_mod, "run_ndl", boom)
+
+    doc = batch.build_ir_for_pdf(pdf, cfg, run_engines=True)
+    assert len(doc.pages) == 3
+    assert any("本文" in b.text for p in doc.pages for b in p.blocks)
+    # キャッシュが残り、--no-engines で再構築できる
+    assert (cfg.work_dir / "digital" / "textlayer.json").exists()
+    doc2 = batch.build_ir_for_pdf(pdf, cfg, run_engines=False)
+    assert len(doc2.pages) == 3
