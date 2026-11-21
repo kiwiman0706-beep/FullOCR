@@ -6,6 +6,7 @@
     fullocr batch ./books                 「お任せ」一括変換（要約＋失敗一覧のみ表示）
     fullocr render work/book/ir.json      IR(補正済み含む)から Markdown 再生成
     fullocr eval work/                    目次(TOC)精度を評価（PDCAの物差し）
+    fullocr estimate work/                AI処理の費用概算を全書籍で集計（課金なし）
     fullocr digest work/book/             AI要約・マインドマップ・一問一答を生成（ソースリンク付き）
     fullocr pack work/book/               1ファイルの .jisui（ZIP）にまとめる
 """
@@ -147,6 +148,78 @@ def render(
     cfg = _load_cfg(config)
     out = render_from_ir(ir, cfg, out_name=name)
     console.print(f"[green]再生成完了:[/] {out}")
+
+
+@app.command("estimate")
+def estimate_cmd(
+    target: Path = typer.Argument(..., help="ir.json、work/<book>/、または work/（全書籍を集計）"),
+    config: Path | None = typer.Option(None, "--config", "-c", help="設定 JSON（単価）"),
+    feature: str = typer.Option("structure,digest", "--feature",
+                                help="集計する機能をカンマ区切り（structure/digest/rewrite/figure_alt/anomaly）"),
+    as_json: bool = typer.Option(False, "--json", help="JSON で出力"),
+):
+    """AI処理の費用概算を全書籍で集計する（OCR/LLMは呼ばない・課金なし）。
+
+    後で一括でAI構造化(structure)や要約(digest)を回す前に、「全部やると概算いくらか」を
+    把握するための物差し。out/estimate_report.json にも保存する。
+    """
+    import json as _json
+
+    from .estimate import estimate_feature
+
+    feats = [f.strip() for f in feature.split(",") if f.strip()]
+    cfg = _load_cfg(config)
+
+    ir = target if target.suffix == ".json" else target / "ir.json"
+    if ir.exists():
+        books = [ir]
+    else:
+        books = sorted(target.glob("*/ir.json"))
+    if not books:
+        console.print(f"[red]ir.json が見つかりません:[/] {target}")
+        raise typer.Exit(1)
+
+    per_book: list[dict] = []
+    totals: dict[str, float] = {f: 0.0 for f in feats}
+    counts: dict[str, int] = {f: 0 for f in feats}
+    for p in books:
+        doc = Document.load(p)
+        name = p.parent.name
+        row: dict = {"book": name, "pages": len(doc.pages)}
+        for f in feats:
+            est = estimate_feature(doc, f, cfg)
+            row[f] = est["jpy"]
+            if est["applicable"]:
+                totals[f] += est["jpy"]
+                counts[f] += 1
+        per_book.append(row)
+
+    report = {
+        "books": len(books),
+        "feature_totals_jpy": {f: round(totals[f], 1) for f in feats},
+        "feature_applicable_books": counts,
+        "grand_total_jpy": round(sum(totals.values()), 1),
+        "per_book": per_book,
+        "price": {"model": cfg.structure_llm.model, "usd_jpy": cfg.cost.usd_jpy,
+                  "in_per_mtok": cfg.cost.price_in_per_mtok, "out_per_mtok": cfg.cost.price_out_per_mtok},
+    }
+    report_path = cfg.out_dir / "estimate_report.json"
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(_json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    if as_json:
+        console.print_json(_json.dumps(report, ensure_ascii=False))
+        return
+    table = Table("書籍", "ページ", *feats)
+    for row in per_book:
+        table.add_row(row["book"], str(row["pages"]), *[f"¥{row[f]:g}" for f in feats])
+    console.print(table)
+    console.print(f"[bold]合計 {len(books)}冊[/]  " +
+                  "  ".join(f"{f}: [green]¥{totals[f]:,.0f}[/]（{counts[f]}冊）" for f in feats))
+    console.print(f"[bold]総計 ¥{report['grand_total_jpy']:,.0f}[/]  "
+                  f"（{cfg.structure_llm.model} / ${cfg.cost.price_in_per_mtok}・${cfg.cost.price_out_per_mtok} per Mtok, "
+                  f"¥{cfg.cost.usd_jpy}/$）")
+    console.print(f"保存: {report_path}")
 
 
 @app.command("eval")
