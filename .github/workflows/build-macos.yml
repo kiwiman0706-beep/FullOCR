@@ -73,8 +73,10 @@ jobs:
           echo "OK: docling + latex2mathml data bundled"
 
       # --- NDLOCR-Lite: separate license/deps, built as its own companion ---
-      - name: Clone NDLOCR-Lite
-        run: git clone --depth 1 https://github.com/ndl-lab/ndlocr-lite.git ndlocr-lite-src
+      # Pinned to v1.3.1 (ships bundled models). v2.0 downloads models at first
+      # run; bundling those is tracked in docs/ndlocr-v2.md.
+      - name: Clone NDLOCR-Lite (v1.3.1)
+        run: git clone --depth 1 --branch 1.3.1 https://github.com/ndl-lab/ndlocr-lite.git ndlocr-lite-src
 
       - name: Install NDLOCR-Lite deps
         working-directory: ndlocr-lite-src

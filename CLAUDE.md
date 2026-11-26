@@ -44,9 +44,16 @@ fullocr render work/book/ir.json -c fullocr.config.json   # regenerate Markdown 
 fullocr gui                                # launch the local drag-and-drop batch-conversion GUI (pywebview + FastAPI)
 ```
 
-NDLOCR-Lite itself is not pip-installable; install per the official
-[ndl-lab/ndlocr-lite](https://github.com/ndl-lab/ndlocr-lite) distribution (`uv tool install .` from
-a clone gives a global `ndlocr-lite` command — this is what `NDLConfig.command` defaults to).
+NDLOCR-Lite (v2.0+) is now pip-installable: `uv tool install ndlocr-lite` (or `pip install
+ndlocr-lite`) gives the global `ndlocr-lite` command that `NDLConfig.command` defaults to. v2
+downloads its ONNX models (~157 MB) from NDL on first run and caches them (Windows
+`%LOCALAPPDATA%\ndlocr-lite\models\v2`, macOS `~/Library/Caches/ndlocr-lite/models/v2`, Linux
+`${XDG_CACHE_HOME:-~/.cache}/ndlocr-lite/models/v2`); the first OCR therefore needs network. v2
+keeps the integration points FullOCR relies on — `--sourcepdf` PDF input, the transparent
+`*_text.pdf` text layer, and the JSON shape (`contents`/`pages`, line keys `boundingBox`/`text`/
+`confidence`/`isVertical`) — so `NDLConfig` defaults and `pipeline/ndl.py` work unchanged (see
+docs/ndlocr-v2.md for the migration status and what the bundled exe still needs). The older v1.x
+(e.g. 1.3.1) was not pip-installable and was installed with `uv tool install .` from a clone.
 Docling installs normally via `uv pip install -e ".[docling,pdf]"`. Both command defaults in
 `config.py` are confirmed working against real installs, not placeholders.
 

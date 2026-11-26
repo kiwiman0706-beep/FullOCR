@@ -87,8 +87,12 @@ jobs:
           Write-Host "OK: latex2mathml data present"
 
       # --- NDLOCR-Lite: separate license/deps, built as its own companion exe ---
-      - name: Clone NDLOCR-Lite
-        run: git clone --depth 1 https://github.com/ndl-lab/ndlocr-lite.git ndlocr-lite-src
+      # Pinned to v1.3.1: it ships its ONNX models in src/model (bundled below).
+      # v2.0 removed bundled models (downloaded from NDL on first run), so the
+      # exe must prefetch+bundle them first — tracked in docs/ndlocr-v2.md. Keep
+      # the companion on 1.3.1 until that is validated.
+      - name: Clone NDLOCR-Lite (v1.3.1)
+        run: git clone --depth 1 --branch 1.3.1 https://github.com/ndl-lab/ndlocr-lite.git ndlocr-lite-src
 
       - name: Install NDLOCR-Lite deps
         working-directory: ndlocr-lite-src

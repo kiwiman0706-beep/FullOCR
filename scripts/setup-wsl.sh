@@ -134,16 +134,13 @@ else
   warn "テストが失敗しました。ログを確認してください。"
 fi
 
-# ---- 7. (任意) NDLOCR-Lite ---------------------------------------------------
+# ---- 7. (任意) NDLOCR-Lite (v2.0+) ------------------------------------------
 if [ "$WITH_NDL" -eq 1 ]; then
-  NDL_DIR="$PROJECTS_DIR/ndlocr-lite"
-  if [ -d "$NDL_DIR/.git" ]; then
-    ok "NDLOCR-Lite は取得済み: $NDL_DIR"
+  log "NDLOCR-Lite (v2) を導入します（PyPI）"
+  if uv tool install ndlocr-lite; then
+    ok "NDLOCR-Lite 導入完了。初回OCR時にモデル(約157MB)を自動取得します（要ネット接続）"
   else
-    log "NDLOCR-Lite を clone します: $NDL_DIR"
-    git clone https://github.com/ndl-lab/ndlocr-lite.git "$NDL_DIR" \
-      && ok "clone 完了。$NDL_DIR/README を見てモデル取得・依存導入を行ってください" \
-      || warn "NDLOCR-Lite の clone に失敗。手動で取得してください"
+    warn "uv tool install ndlocr-lite に失敗。'pip install ndlocr-lite' を手動で試してください"
   fi
 fi
 
